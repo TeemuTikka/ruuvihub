@@ -5,14 +5,16 @@ updates:
       - /
       - /tests
     groups:
-      shared-python-dependencies:
+      all-python-dependencies:
         patterns: ["*"]
-        group-by: dependency-name
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
   - package-ecosystem: github-actions
     directory: /
+    groups:
+      all-github-actions:
+        patterns: ["*"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
