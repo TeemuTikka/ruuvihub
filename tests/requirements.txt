@@ -1,5 +1,5 @@
 pytest>=9.1.1
-pytest-asyncio>=0.23.0
+pytest-asyncio>=1.4.0
 ruuvitag-sensor>=4.1.0
 requests>=2.34.2
 httpx>=0.28.1
