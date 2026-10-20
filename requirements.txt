@@ -1,4 +1,4 @@
-ruuvitag-sensor>=4.0.0
+ruuvitag-sensor>=4.1.0
 requests>=2.34.2
 fastapi>=0.143.3
 uvicorn[standard]>=0.30.0
