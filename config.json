@@ -1,0 +1,12 @@
+{
+  "datetime_format": "fi",
+  "scan_enabled": true,
+  "scan_interval_seconds": 60,
+  "scan_timeout_seconds": 5,
+  "upload_interval_seconds": 300,
+  "max_entries_per_tag": 100,
+  "tag_addresses": [],
+  "db_path": "",
+  "db_retention_days": 0,
+  "log_path": ""
+}

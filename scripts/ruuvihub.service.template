@@ -1,0 +1,19 @@
+[Unit]
+Description=RuuviHub – Ruuvi Tag BLE Scanner
+After=network.target bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+User=__RUUVIHUB_USER__
+WorkingDirectory=__RUUVIHUB_BASE__/current
+Environment=CONFIG_PATH=__RUUVIHUB_BASE__/shared/config.json
+Environment=SETTINGS_PATH=__RUUVIHUB_BASE__/shared/settings.local.json
+ExecStart=__RUUVIHUB_BASE__/shared/venv/bin/python3 __RUUVIHUB_BASE__/current/src/main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

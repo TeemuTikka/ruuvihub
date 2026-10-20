@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – RuuviHub{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<div id="card-grid" class="card-grid">
+  {% for card in cards %}
+  <a class="card{% if card.stale %} stale{% endif %}" href="/sensor/{{ card.mac }}" data-mac="{{ card.mac }}">
+    <div class="card-name">{{ card.name }}</div>
+    <div class="card-meta">Last seen: {{ card.timestamp | format_timestamp if card.timestamp else "never" }}</div>
+    <dl class="card-metrics">
+      <dt data-metric="temperature" {% if 'temperature' not in visible_metrics %}hidden{% endif %}>Temp</dt><dd data-metric="temperature" {% if 'temperature' not in visible_metrics %}hidden{% endif %}>{{ "%.1f"|format(card.temperature) if card.temperature is not none else "—" }} °C</dd>
+      <dt data-metric="temperature_change" {% if 'temperature_change' not in visible_metrics %}hidden{% endif %} class="hour-change-label" title="Compared with the closest reading to {{ change_hours }} hours ago (±10 minutes)">Change / {{ change_hours }}h</dt><dd data-metric="temperature_change" {% if 'temperature_change' not in visible_metrics %}hidden{% endif %} class="hour-change">{% if card.temperature_change is not none %}{{ "+" if card.temperature_change > 0 else "" }}{{ "%.1f"|format(card.temperature_change) }} °C{% else %}—{% endif %}</dd>
+      <dt data-metric="day_temperature_range" {% if 'day_temperature_range' not in visible_metrics %}hidden{% endif %}>Day low / high</dt><dd data-metric="day_temperature_range" {% if 'day_temperature_range' not in visible_metrics %}hidden{% endif %}>{% if card.day_temperature_low is not none %}{{ "%.1f"|format(card.day_temperature_low) }} / {{ "%.1f"|format(card.day_temperature_high) }} °C{% else %}—{% endif %}</dd>
+      <dt data-metric="night_temperature_range" {% if 'night_temperature_range' not in visible_metrics %}hidden{% endif %}>Night low / high</dt><dd data-metric="night_temperature_range" {% if 'night_temperature_range' not in visible_metrics %}hidden{% endif %}>{% if card.night_temperature_low is not none %}{{ "%.1f"|format(card.night_temperature_low) }} / {{ "%.1f"|format(card.night_temperature_high) }} °C{% else %}—{% endif %}</dd>
+      <dt data-metric="humidity" {% if 'humidity' not in visible_metrics %}hidden{% endif %}>Humidity</dt><dd data-metric="humidity" {% if 'humidity' not in visible_metrics %}hidden{% endif %}>{{ "%.1f"|format(card.humidity) if card.humidity is not none else "—" }} %</dd>
+      <dt data-metric="pressure" {% if 'pressure' not in visible_metrics %}hidden{% endif %}>Pressure</dt><dd data-metric="pressure" {% if 'pressure' not in visible_metrics %}hidden{% endif %}>{{ "%.1f"|format(card.pressure) if card.pressure is not none else "—" }} hPa</dd>
+      <dt data-metric="battery" {% if 'battery' not in visible_metrics %}hidden{% endif %}>Battery</dt><dd data-metric="battery" {% if 'battery' not in visible_metrics %}hidden{% endif %}>{{ card.battery if card.battery is not none else "—" }} mV</dd>
+    </dl>
+    {% if card.stale %}<span class="stale-flag">⚠ stale</span>{% endif %}
+  </a>
+  {% else %}
+  <p>No tags seen yet. Once the scanner picks up a RuuviTag, it will show up here.</p>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block footer_info %}
+{% if storage_stats %}
+<div class="storage-footer" id="storage-overview" role="group" aria-label="Stored data">
+  <span>Oldest reading: <time id="storage-oldest" datetime="{{ storage_stats.oldest_timestamp or '' }}">{{ storage_stats.oldest_timestamp | format_timestamp }}</time></span>
+  <span>Newest reading: <time id="storage-newest" datetime="{{ storage_stats.newest_timestamp or '' }}">{{ storage_stats.newest_timestamp | format_timestamp }}</time></span>
+  <span>Readings: <span id="storage-count">{{ "{:,}".format(storage_stats.reading_count) }}</span></span>
+  <span>Database: <span id="storage-size">{{ storage_stats.database_size_display }}</span></span>
+  <span>Disk free: <span id="storage-free">{{ storage_stats.disk_free_display }}</span></span>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  const DASHBOARD_REFRESH_SECONDS = {{ refresh_seconds }};
+  window.DASHBOARD_OPTIONS = {visible_metrics: {{ visible_metrics | tojson }}, change_hours: {{ change_hours }}, refresh_seconds: {{ refresh_seconds }}};
+</script>
+<script src="{{ static_url('dashboard.js') }}"></script>
+{% endblock %}

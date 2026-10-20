@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directories:
+      - /
+      - /tests
+    groups:
+      shared-python-dependencies:
+        patterns: ["*"]
+        group-by: dependency-name
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

@@ -1,0 +1,45 @@
+name: CI
+
+# Runs the test suite on main pushes and pull requests, independent of the
+# main-push auto-tag and tag-push release workflows. This is the
+# fast feedback loop for contributors; it does not tag or publish
+# anything.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r tests/requirements.txt
+
+      - name: Run tests
+        run: |
+          # test_connection.py requires real BLE hardware; excluded here
+          # the same way README-dev.md documents for local runs.
+          python -m pytest tests/ -q --ignore=tests/test_connection.py

@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}Config · RuuviHub{% endblock %}
+
+{% block content %}
+<h1>System settings</h1>
+{% include "config_nav.html" %}
+<form class="form-panel" method="post" action="/config">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+
+  {% if saved %}
+  <p class="success-msg">Settings saved.</p>
+  {% endif %}
+  {% if error %}
+  <p class="error">{{ error }}</p>
+  {% endif %}
+
+  <section class="section">
+    <h2>Scanning</h2>
+    <div class="field-grid">
+      <div class="field field-full checkbox-row">
+        <input id="scan_enabled" name="scan_enabled" type="checkbox" {% if settings.scan_enabled %}checked{% endif %}>
+        <label for="scan_enabled">Enable scanning</label>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="scan_interval_seconds">Scan interval (seconds)</label>
+        <input id="scan_interval_seconds" name="scan_interval_seconds" type="number" min="1" value="{{ settings.scan_interval_seconds }}" required>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="scan_timeout_seconds">Scan timeout (seconds)</label>
+        <input id="scan_timeout_seconds" name="scan_timeout_seconds" type="number" min="1" value="{{ settings.scan_timeout_seconds }}" required>
+      </div>
+
+      <div class="field field-full">
+        <label for="tag_addresses">Tag whitelist (one MAC per line or comma-separated)</label>
+        <textarea id="tag_addresses" name="tag_addresses" rows="4" placeholder="AA:BB:CC:DD:EE:FF">{{ tag_addresses_text }}</textarea>
+        <p class="hint">Leave empty to scan all tags in range.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Storage &amp; Retention</h2>
+    <div class="field-grid">
+      <div class="field field-narrow">
+        <label for="max_entries_per_tag">Max entries per tag (in memory)</label>
+        <input id="max_entries_per_tag" name="max_entries_per_tag" type="number" min="1" value="{{ settings.max_entries_per_tag }}" required>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="db_retention_days">Retention days (0 = keep forever)</label>
+        <input id="db_retention_days" name="db_retention_days" type="number" min="0" value="{{ settings.db_retention_days }}" required>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="db_path_display">Database file path</label>
+        <input id="db_path_display" type="text" value="{{ settings.db_path or 'ruuvi_data.db (default)' }}" disabled>
+        <p class="hint">Restart required to change. Edit <code>settings.local.json</code> or <code>config.json</code> directly.</p>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="log_path_display">Log file path</label>
+        <input id="log_path_display" type="text" value="{{ settings.log_path or 'logs/ruuvihub.log (default, one file per day)' }}" disabled>
+        <p class="hint">Restart required to change. Edit <code>settings.local.json</code> or <code>config.json</code> directly.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Cloud Upload</h2>
+    <div class="field-grid">
+      <div class="field">
+        <label for="cloud_upload_destination">Upload destination</label>
+        <select id="cloud_upload_destination" name="cloud_upload_destination">
+          <option value="http" {% if settings.cloud_upload_destination == 'http' %}selected{% endif %}>HTTP endpoint</option>
+          <option value="azure_blob" {% if settings.cloud_upload_destination == 'azure_blob' %}selected{% endif %}>Azure Blob Storage</option>
+        </select>
+      </div>
+      <div class="field field-narrow">
+        <label for="upload_interval_seconds">Upload interval (seconds)</label>
+        <input id="upload_interval_seconds" name="upload_interval_seconds" type="number" min="1" value="{{ settings.upload_interval_seconds }}" required>
+      </div>
+
+      <div class="field" data-upload-destination="http" {% if settings.cloud_upload_destination != 'http' %}hidden{% endif %}>
+        <label for="cloud_endpoint_url">Endpoint URL</label>
+        <input id="cloud_endpoint_url" name="cloud_endpoint_url" type="url" value="{{ settings.cloud_endpoint_url }}" placeholder="https://example.com/api/ruuvi">
+      </div>
+
+      <div class="field" data-upload-destination="http" {% if settings.cloud_upload_destination != 'http' %}hidden{% endif %}>
+        <label for="cloud_auth_header_name">Auth header name</label>
+        <input id="cloud_auth_header_name" name="cloud_auth_header_name" type="text" value="{{ settings.cloud_auth_header_name }}" placeholder="e.g. x-functions-key (optional)">
+      </div>
+
+      <div class="field" data-upload-destination="http" {% if settings.cloud_upload_destination != 'http' %}hidden{% endif %}>
+        <label for="cloud_auth_header_value">Auth header value</label>
+        <input id="cloud_auth_header_value" name="cloud_auth_header_value" type="password" value="" autocomplete="new-password">
+        <p class="hint">Leave blank to keep the current value.</p>
+      </div>
+
+      <div class="field field-full" data-upload-destination="azure_blob" {% if settings.cloud_upload_destination != 'azure_blob' %}hidden{% endif %}>
+        <label for="azure_blob_container_url">Container SAS URL</label>
+        <input id="azure_blob_container_url" name="azure_blob_container_url" type="password" value="" autocomplete="new-password" placeholder="https://account.blob.core.windows.net/container?…">
+        <p class="hint">Paste the full container URL with its SAS token. {% if settings.azure_blob_container_url %}A URL is saved; leave blank to keep it.{% endif %}</p>
+        <p class="hint">Each upload creates a new JSON blob. Test connection creates a small test blob.</p>
+      </div>
+
+      <div class="field field-full checkbox-row">
+        <input id="cloud_upload_enabled" name="cloud_upload_enabled" type="checkbox" {% if settings.cloud_upload_enabled %}checked{% endif %}>
+        <label for="cloud_upload_enabled">Enable cloud upload</label>
+      </div>
+
+      <div class="field field-full test-connection-row">
+        <button id="test-upload-button" type="button" class="secondary">Test connection</button>
+        <p id="test-upload-result"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>History Backfill</h2>
+    <div class="field-grid">
+      <div class="field field-full checkbox-row">
+        <input id="history_backfill_enabled" name="history_backfill_enabled" type="checkbox" {% if settings.history_backfill_enabled %}checked{% endif %}>
+        <label for="history_backfill_enabled">Enable history backfill</label>
+      </div>
+      <div class="field field-full">
+        <p class="hint">
+          Pulls each tag's on-device GATT history log (temperature/humidity/pressure only,
+          requires tag firmware &ge; 3.30.0) to fill gaps left by a Pi/Bluetooth outage.
+          Off by default: connecting via GATT briefly pauses passive scanning while it runs.
+          See <code>docs/research-ruuvitag-gap-backfill.md</code> for background/limitations.
+        </p>
+      </div>
+
+      <div class="field field-full checkbox-row">
+        <input id="history_backfill_on_startup" name="history_backfill_on_startup" type="checkbox" {% if settings.history_backfill_on_startup %}checked{% endif %}>
+        <label for="history_backfill_on_startup">Run once on startup</label>
+      </div>
+
+      <div class="field field-full checkbox-row">
+        <input id="history_backfill_periodic" name="history_backfill_periodic" type="checkbox" {% if settings.history_backfill_periodic %}checked{% endif %}>
+        <label for="history_backfill_periodic">Run periodically</label>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="history_backfill_interval_seconds">Periodic interval (seconds)</label>
+        <input id="history_backfill_interval_seconds" name="history_backfill_interval_seconds" type="number" min="1" value="{{ settings.history_backfill_interval_seconds }}" required>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="history_backfill_failure_threshold">Consecutive failures before auto-disabling a tag</label>
+        <input id="history_backfill_failure_threshold" name="history_backfill_failure_threshold" type="number" min="1" value="{{ settings.history_backfill_failure_threshold }}" required>
+      </div>
+
+      <div class="field field-narrow">
+        <label for="history_backfill_timeout_seconds">Per-tag history pull timeout (seconds)</label>
+        <input id="history_backfill_timeout_seconds" name="history_backfill_timeout_seconds" type="number" min="1" value="{{ settings.history_backfill_timeout_seconds }}" required>
+      </div>
+
+      <div class="field field-full">
+        <p class="hint">
+          {% if backfill_sync_status.running %}
+          Sync in progress…
+          {% elif backfill_sync_status.last_synced_at %}
+          Last manual sync finished: {{ backfill_sync_status.last_synced_at | format_timestamp }}
+          {% else %}
+          No manual sync has been run yet.
+          {% endif %}
+        </p>
+      </div>
+      <div class="field field-full">
+        <button type="submit" form="sync-now-form" class="secondary" {% if backfill_sync_status.running %}disabled{% endif %}>Sync history now</button>
+      </div>
+
+      {% if disabled_backfill_tags %}
+      <div class="field field-full">
+        <label>Tags disabled from backfill</label>
+        <table>
+          <thead>
+            <tr><th>MAC address</th><th>Reason</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for tag in disabled_backfill_tags %}
+            <tr>
+              <td><code>{{ tag.mac }}</code></td>
+              <td>{{ tag.reason }}</td>
+              <td>
+                <button type="submit" form="reenable-backfill-{{ tag.field_suffix }}" class="secondary">Re-enable</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Tags</h2>
+    {% if tag_rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>MAC address</th>
+          <th>Friendly name</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tag in tag_rows %}
+        <tr>
+          <td><code>{{ tag.mac }}</code></td>
+          <td>
+            <input
+              name="{{ tag.field_name }}"
+              type="text"
+              value="{{ tag.name }}"
+              placeholder="{{ tag.mac }}"
+            >
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="hint">No known tags yet. Add MACs to the whitelist or name tags after they appear elsewhere in the UI.</p>
+    {% endif %}
+  </section>
+
+  <section class="section" id="account">
+    <h2>Account</h2>
+    <div class="field-grid">
+      <div class="field">
+        <label for="ui_username">Username</label>
+        <input id="ui_username" name="ui_username" type="text" value="{{ settings.ui_username }}" autocomplete="username" required>
+      </div>
+
+      <div class="field">
+        <label for="new_password">New password</label>
+        <input id="new_password" name="new_password" type="password" value="" autocomplete="new-password">
+      </div>
+
+      <div class="field">
+        <label for="confirm_new_password">Confirm new password</label>
+        <input id="confirm_new_password" name="confirm_new_password" type="password" value="" autocomplete="new-password">
+      </div>
+
+      <div class="field field-full">
+        <p class="hint">Leave the password fields blank to keep the current password.</p>
+      </div>
+    </div>
+  </section>
+
+  <button type="submit">Save settings</button>
+</form>
+
+<form id="sync-now-form" method="post" action="/config/sync-now">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+</form>
+
+{% for tag in disabled_backfill_tags %}
+<form id="reenable-backfill-{{ tag.field_suffix }}" method="post" action="/config/reenable-backfill">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  <input type="hidden" name="mac" value="{{ tag.mac }}">
+</form>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/config.js"></script>
+{% endblock %}

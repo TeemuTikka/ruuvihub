@@ -1,0 +1,106 @@
+{% macro nav_link(request, href, label) -%}
+<a class="nav-link{% if request.url.path == href %} active{% endif %}" href="{{ href }}"{% if request.url.path == href %} aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}RuuviHub{% endblock %}</title>
+  <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+  <script>window.RUUVIHUB_DATETIME_FORMAT = {{ request.app.state.settings_store.get_sync().datetime_format | tojson }};</script>
+  <link rel="stylesheet" href="{{ static_url('style.css') }}">
+  {% if show_nav | default(true) %}
+  <script>
+    // Applied before first paint so the drawer never flashes closed-then-open
+    // (or the wrong width) on navigation. logstream.js takes over (and
+    // removes/overwrites these) on load.
+    try {
+      if (localStorage.getItem("ruuvihub.logPanel.open") === "1") {
+        document.documentElement.classList.add("log-panel-open");
+      }
+      var storedWidth = parseInt(localStorage.getItem("ruuvihub.logPanel.width"), 10);
+      if (storedWidth) {
+        document.documentElement.style.setProperty("--log-panel-width", storedWidth + "px");
+      }
+    } catch (e) {}
+  </script>
+  {% endif %}
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% set is_admin = request.state.csrf_token | default('') | length > 0 %}
+  {% if show_nav | default(true) %}
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">RuuviHub</a>
+      <nav class="nav" aria-label="Main navigation">
+        {{ nav_link(request, "/", "Dashboard") }}
+        {% if is_admin %}
+        <details class="settings-menu">
+          <summary class="nav-link{% if request.url.path == '/config' or request.url.path.startswith('/config/') %} active{% endif %}">Settings</summary>
+          <div class="settings-menu-links">
+            {{ nav_link(request, "/config/dashboard", "Dashboard settings") }}
+            {{ nav_link(request, "/config", "System settings") }}
+          </div>
+        </details>
+        {% endif %}
+      </nav>
+      {% if is_admin %}
+      <label class="log-toggle">
+        <input type="checkbox" id="log-panel-toggle">
+        <script>document.getElementById("log-panel-toggle").checked = document.documentElement.classList.contains("log-panel-open");</script>
+        Logs
+      </label>
+      <form class="logout-form" method="post" action="/logout">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+        <button type="submit" class="link-button">Log out</button>
+      </form>
+      {% else %}
+      <a class="nav-link" href="/login">Admin log in</a>
+      {% endif %}
+    </div>
+  </header>
+  {% endif %}
+
+  {% if is_admin and using_default_credentials | default(false) %}
+  <div class="banner banner-warning">
+    You're still using the default admin credentials
+    (<code>admin</code> / <code>ruuvihub</code>). Anyone on your network
+    can log in — change your password on the
+    <a href="/config#account">System settings</a> as soon as you can.
+  </div>
+  {% endif %}
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="app-footer">
+    <span>RuuviHub · Version {{ app_version }}</span>
+    {% block footer_info %}{% endblock %}
+  </footer>
+  <script src="{{ static_url('app.js') }}"></script>
+
+  {% if show_nav | default(true) and is_admin %}
+  <aside id="log-panel" class="log-panel">
+    <div id="log-panel-resize-handle" class="log-panel-resize-handle" title="Drag to resize"></div>
+    <div class="log-panel-header">
+      <span>Live logs</span>
+      <select id="log-level-select">
+        <option value="10">Debug</option>
+        <option value="20" selected>Info</option>
+        <option value="30">Warning</option>
+        <option value="40">Error</option>
+      </select>
+      <span id="log-panel-status" class="log-panel-status">disconnected</span>
+      <button type="button" id="log-panel-clear" class="secondary">Clear</button>
+    </div>
+    <div id="log-lines" class="log-lines"></div>
+  </aside>
+  <script src="{{ static_url('logstream.js') }}" defer></script>
+  {% endif %}
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "RuuviHub: Demo dashboard (F5)",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "Install Python dependencies",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "windows": {
+                "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+            },
+            "program": "${workspaceFolder}/scripts/run_demo.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "RUUVIHUB_DISABLE_HTTPS": "true"
+            },
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "Uvicorn running on https?://\\S+:([0-9]+)",
+                "uriFormat": "http://localhost:%s"
+            }
+        },
+        {
+            "name": "RuuviHub: Real sensors + Browser",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "Install Python dependencies",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "windows": {
+                "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+            },
+            "program": "${workspaceFolder}/src/main.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "RUUVIHUB_DISABLE_HTTPS": "true"
+            },
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "Uvicorn running on https?://\\S+:([0-9]+)",
+                "uriFormat": "http://localhost:%s"
+            }
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

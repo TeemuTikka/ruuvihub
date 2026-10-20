@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% set show_nav = false %}
+{% block title %}Log in – RuuviHub{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <form class="login-card" method="post" action="/login">
+    <h1>RuuviHub</h1>
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Log in</button>
+  </form>
+</div>
+{% endblock %}

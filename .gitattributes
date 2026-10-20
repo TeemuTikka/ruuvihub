@@ -1,0 +1,8 @@
+# Shell scripts must always check out with LF line endings, even on
+# Windows, or bash on the Raspberry Pi fails with "unexpected token" /
+# "$'\r'" syntax errors.
+*.sh text eol=lf
+scripts/*.template text eol=lf
+
+# Migration handoff stays in the private repository, outside public exports.
+docs/repository-migration-handoff.md export-ignore

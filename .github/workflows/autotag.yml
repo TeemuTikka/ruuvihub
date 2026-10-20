@@ -1,0 +1,110 @@
+name: Auto-tag release (patch bump)
+
+# When AUTO_RELEASE_ENABLED is true, on each push to main run tests and compute the
+# next stable PATCH tag, with v1.1.0 as the minimum for the first public
+# release. Invoke release.yml directly: a GITHUB_TOKEN tag push cannot
+# trigger another workflow's tag-push event.
+#
+# Bumps on EVERY push to main regardless of what changed (by design
+# — kept simple rather than trying to detect "release-relevant" file
+# changes).
+
+on:
+  push:
+    branches: [main]
+
+# Two pushes to main in quick succession must not run this
+# concurrently: both could read the same "latest tag" and try to
+# create/push the same new tag, or a slower run for an older commit
+# could finish after a faster run for a newer commit and stamp the
+# older commit with a numerically newer tag. Queuing (rather than
+# cancelling) keeps every push's tests running to completion while
+# still serializing the tag computation/push itself.
+concurrency:
+  group: autotag-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Opt in only after initial repository setup and the first manual v1.1.0 tag.
+    if: vars.AUTO_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r tests/requirements.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -q --ignore=tests/test_connection.py
+
+  autotag:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new_tag: ${{ steps.tag.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Verify commit is still the tip of main
+        id: check
+        run: |
+          set -euo pipefail
+          remote_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$remote_sha" != "$GITHUB_SHA" ]]; then
+            echo "main has since moved on to $remote_sha (this run is for $GITHUB_SHA) — skipping to avoid tagging a commit main has moved past."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif git tag --points-at "$GITHUB_SHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
+            echo "This commit already has a stable release tag — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute and push next patch tag
+        id: tag
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          new_tag="$(python scripts/next_release_tag.py --minimum-version v1.1.0)"
+          echo "Next release: $new_tag"
+          git tag "$new_tag"
+          git push origin "$new_tag"
+          echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: autotag
+    if: needs.autotag.outputs.new_tag != ''
+    # A tag pushed above using the built-in GITHUB_TOKEN does not trigger
+    # release.yml's `push.tags` event (GitHub suppresses workflow runs
+    # caused by the default token), so invoke it directly instead of
+    # relying on that push to fire it.
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    with:
+      version: ${{ needs.autotag.outputs.new_tag }}
+

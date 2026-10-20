@@ -1,0 +1,597 @@
+/* RuuviHub web UI – minimal, dependency-free styling.
+   Served from /static, no build step, works offline on a Pi. */
+
+:root {
+  --bg: #0f1720;
+  --panel: #1b2532;
+  --panel-border: #2a3746;
+  --text: #e6edf3;
+  --text-dim: #9aa8b6;
+  --accent: #4fb3ff;
+  --danger: #ff6b6b;
+  --warning: #f5a623;
+  --ok: #35c98c;
+  --stale: #8892a0;
+  --radius: 8px;
+  --topbar-height: 56px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--accent);
+}
+
+.topbar {
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  height: var(--topbar-height);
+  position: sticky;
+  top: 0;
+  z-index: 60;
+}
+
+.topbar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --topbar-height: 88px;
+  }
+
+  .topbar-inner {
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 0.35rem 0.75rem;
+  }
+
+  .topbar-inner .nav {
+    gap: 0.75rem;
+  }
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.nav {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--text-dim);
+  padding: 0.25rem 0;
+}
+
+.nav-link.active,
+.nav-link:hover {
+  color: var(--text);
+  border-bottom: 2px solid var(--accent);
+}
+
+.settings-menu {
+  position: relative;
+}
+
+.settings-menu summary {
+  cursor: pointer;
+}
+
+.settings-menu-links {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  display: grid;
+  min-width: 12rem;
+  padding: 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px #0006;
+}
+
+.settings-menu-links .nav-link {
+  padding: 0.5rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
+
+.link-button:hover {
+  color: var(--text);
+}
+
+.banner {
+  padding: 0.6rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+.banner-warning {
+  background: #3a2f12;
+  color: var(--warning);
+  border-bottom: 1px solid #5a4a1a;
+}
+
+.content {
+  flex: 1;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+}
+
+.app-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 1rem;
+  text-align: center;
+  padding: 0.75rem 1.25rem 1.5rem;
+  color: var(--muted, #888);
+  font-size: 0.8rem;
+}
+
+/* Inline storage metadata stays secondary to sensor readings. */
+.storage-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem 0.85rem;
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.storage-footer > span {
+  white-space: nowrap;
+}
+
+/* Dashboard card grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-decoration: none;
+  color: var(--text);
+  display: block;
+}
+
+.card:hover {
+  border-color: var(--accent);
+}
+
+.card.stale {
+  opacity: 0.6;
+}
+
+.card-name {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  word-break: break-all;
+}
+
+.card-meta {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.card-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.card-metrics dt {
+  color: var(--text-dim);
+}
+
+.card-metrics dd {
+  margin: 0;
+}
+
+.stale-flag {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--stale);
+}
+
+.stale-flag[hidden] {
+  display: none;
+}
+
+/* Forms (login + config) */
+.config-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.config-nav a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.dashboard-tag-choice {
+  margin: 0.75rem 0;
+}
+
+.login-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: 10vh;
+}
+
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 360px;
+  width: 100%;
+}
+
+.form-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-panel > h1 {
+  margin-bottom: 0;
+}
+
+label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="url"],
+textarea,
+select {
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.5rem;
+  font-size: 1rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+textarea {
+  font-family: inherit;
+  resize: vertical;
+}
+
+button {
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #04121f;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: var(--panel-border);
+  color: var(--text);
+}
+
+.form-panel > button[type="submit"] {
+  align-self: flex-start;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.success-msg {
+  color: var(--ok);
+}
+
+.section {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.section h2 {
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 1.05rem;
+}
+
+/* Responsive field grid: each field gets its own column, wide fields
+   (textareas, tables, checkboxes) span the full row via .field-full. */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem 1.5rem;
+  align-items: start;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.field-full {
+  grid-column: 1 / -1;
+}
+
+.field[hidden] {
+  display: none;
+}
+
+.field-narrow {
+  max-width: 160px;
+}
+
+.field .hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.test-connection-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.test-connection-row #test-upload-result {
+  margin: 0;
+}
+
+.checkbox-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.checkbox-row label {
+  margin: 0;
+  color: var(--text);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table th,
+table td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.range-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.range-selector a {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--text-dim);
+}
+
+.range-selector a.active {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+canvas {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Sensor page title row */
+.sensor-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sensor-title-row h1 {
+  margin: 0;
+}
+
+/* Live log panel (logstream.js) — a slide-in drawer toggled from the
+   topbar checkbox, streaming records from /ws/logs. */
+.log-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.log-toggle input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.log-panel {
+  position: fixed;
+  top: var(--topbar-height);
+  right: 0;
+  bottom: 0;
+  width: var(--log-panel-width, 420px);
+  min-width: 240px;
+  max-width: 90vw;
+  background: var(--panel);
+  border-left: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+  z-index: 50;
+}
+
+.log-panel.resizing {
+  /* Disable the slide transition while dragging so width changes track
+     the pointer immediately instead of easing. */
+  transition: none;
+  user-select: none;
+}
+
+.log-panel.open,
+.log-panel-open .log-panel {
+  transform: translateX(0);
+}
+
+.log-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 51;
+  /* Invisible hit-area; a thin visible line on hover/drag gives feedback. */
+  background: transparent;
+}
+
+.log-panel-resize-handle:hover,
+.log-panel.resizing .log-panel-resize-handle {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+
+.log-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 0.85rem;
+}
+
+.log-panel-header select {
+  width: auto;
+  padding: 0.2rem 0.4rem;
+}
+
+.log-panel-status {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  margin-left: auto;
+}
+
+.log-lines {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-line {
+  padding: 0.1rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.log-line.filtered {
+  display: none;
+}
+
+.log-line.level-debug {
+  color: var(--text-dim);
+}
+
+.log-line.level-warning {
+  color: var(--warning);
+}
+
+.log-line.level-error {
+  color: var(--danger);
+}

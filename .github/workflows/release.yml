@@ -1,0 +1,80 @@
+name: Release
+
+# Triggered by the vX.Y.Z tag pushed by autotag.yml (or a manual
+# MAJOR/MINOR tag you push yourself). Re-runs tests as a safety net,
+# assembles the install-package contents, and publishes a GitHub
+# Release with the archive attached — this is the file you transfer
+# to a Raspberry Pi and install/update with (see README-pi.md).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_call:
+    # Lets autotag.yml invoke this workflow directly for its patch-bump
+    # tags. A tag pushed with the built-in GITHUB_TOKEN does NOT trigger
+    # other workflows' `push.tags` events, so relying on the tag push
+    # alone would mean auto-tagged commits never get a release archive.
+    inputs:
+      version:
+        description: "Version tag to release (e.g. v1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r tests/requirements.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -q --ignore=tests/test_connection.py
+
+  build-and-release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Assemble release archive
+        env:
+          # inputs.* is only populated on workflow_call; on a direct tag
+          # push it's empty, so fall back to the pushed tag name.
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION="${VERSION_INPUT:-$GITHUB_REF_NAME}"
+          python scripts/build_release.py "$VERSION" --output-dir dist
+          echo "ARCHIVE_PATH=dist/ruuvihub-${VERSION}.tar.gz" >> "$GITHUB_ENV"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          files: ${{ env.ARCHIVE_PATH }}
+          generate_release_notes: true

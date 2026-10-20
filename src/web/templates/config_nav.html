@@ -1,0 +1,4 @@
+<nav class="config-nav" aria-label="Configuration pages">
+  <a href="/config" {% if request.url.path == '/config' %}aria-current="page"{% endif %}>System settings</a>
+  <a href="/config/dashboard" {% if request.url.path == '/config/dashboard' %}aria-current="page"{% endif %}>Dashboard settings</a>
+</nav>

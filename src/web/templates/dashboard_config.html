@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Dashboard settings · RuuviHub{% endblock %}
+{% block content %}
+<h1>Dashboard settings</h1>
+{% include "config_nav.html" %}
+<form class="form-panel" method="post" action="/config/dashboard">
+  <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+  {% if saved %}<p class="success-msg">Dashboard settings saved.</p>{% endif %}
+  {% if error %}<p class="error">Enter a positive refresh interval and a comparison period between 1 and {{ max_change_hours }} hours. Select only available sensors and measurements.</p>{% endif %}
+  <section class="section">
+    <h2>Measurements on sensor cards</h2>
+    <p class="hint">Choose the values shown on every sensor card. Names and last-seen times remain visible.</p>
+    <div class="field-grid">
+      {% for key, label in metrics %}
+      <div class="field checkbox-row">
+        <input id="metric-{{ key }}" type="checkbox" name="visible_metrics" value="{{ key }}" {% if key in settings.dashboard_visible_metrics %}checked{% endif %}>
+        <label for="metric-{{ key }}">{{ label }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="section">
+    <h2>Temperature comparison</h2>
+    <div class="field-grid">
+      <div class="field field-narrow">
+        <label for="dashboard_change_hours">Compare with (hours ago)</label>
+        <input id="dashboard_change_hours" name="dashboard_change_hours" type="number" min="1" max="{{ max_change_hours }}" value="{{ settings.dashboard_change_hours }}" required>
+      </div>
+    </div>
+    <p class="hint">Default: 1 hour. Uses the closest temperature within ±10 minutes of the selected time. Shows — if there is no match or the latest reading is more than 10 minutes old.</p>
+  </section>
+  <section class="section">
+    <h2>Sensors on the dashboard</h2>
+    <p class="hint">Choose which known sensors appear. New sensors appear by default. History remains available for sensors hidden here.</p>
+    {% for tag in tags %}
+    <div class="checkbox-row dashboard-tag-choice">
+      <input type="hidden" name="known_tags" value="{{ tag.mac }}">
+      <input id="tag-{{ loop.index }}" type="checkbox" name="visible_tags" value="{{ tag.mac }}" {% if tag.visible %}checked{% endif %}>
+      <label for="tag-{{ loop.index }}">{{ tag.name or tag.mac }}{% if tag.name %} <span class="hint">({{ tag.mac }})</span>{% endif %}</label>
+    </div>
+    {% else %}<p class="hint">No known sensors yet.</p>{% endfor %}
+  </section>
+  <section class="section">
+    <h2>Refresh and footer</h2>
+    <div class="field-grid">
+      <div class="field field-narrow">
+        <label for="dashboard_refresh_seconds">Data refresh interval (seconds)</label>
+        <input id="dashboard_refresh_seconds" name="dashboard_refresh_seconds" type="number" min="1" value="{{ settings.dashboard_refresh_seconds }}" required>
+      </div>
+      <div class="field checkbox-row">
+        <input id="dashboard_show_storage_info" name="dashboard_show_storage_info" type="checkbox" {% if settings.dashboard_show_storage_info %}checked{% endif %}>
+        <label for="dashboard_show_storage_info">Show storage information in the footer</label>
+      </div>
+    </div>
+    <p class="hint">These preferences apply to everyone viewing the dashboard.</p>
+  </section>
+  <button type="submit">Save dashboard settings</button>
+</form>
+{% endblock %}

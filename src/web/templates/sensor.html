@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ friendly_name }} · RuuviHub{% endblock %}
+
+{% block content %}
+<div id="sensor-page" data-mac="{{ mac }}" data-range="{{ range }}">
+  <section class="section">
+    <div class="sensor-title-row">
+      <h1 id="sensor-title">{{ friendly_name }}</h1>
+    </div>
+    <p id="sensor-mac" class="card-meta" {% if friendly_name == mac %}hidden{% endif %}>{{ mac }}</p>
+    {% if request.state.csrf_token %}<p class="card-meta">Rename this tag from the <a href="/config">Config</a> page.</p>{% endif %}
+
+    <div class="range-selector">
+      {% for value, label in range_options %}
+      <a
+        href="/sensor/{{ mac }}?range={{ value }}"
+        class="{% if value == range %}active{% endif %}"
+      >{{ label }}</a>
+      {% endfor %}
+    </div>
+
+    <p><a href="/api/history/{{ mac }}/export?range={{ range }}">Download CSV</a></p>
+    <p id="history-status" class="card-meta"></p>
+  </section>
+
+  <section class="section">
+    <h2>Temperature</h2>
+    <canvas id="chart-temperature"></canvas>
+  </section>
+
+  <section class="section">
+    <h2>Humidity</h2>
+    <canvas id="chart-humidity"></canvas>
+  </section>
+
+  <section class="section">
+    <h2>Pressure</h2>
+    <canvas id="chart-pressure"></canvas>
+  </section>
+
+  <section class="section">
+    <h2>Battery voltage</h2>
+    <canvas id="chart-battery"></canvas>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/chart.umd.min.js"></script>
+<script src="{{ static_url('sensor.js') }}"></script>
+{% endblock %}
