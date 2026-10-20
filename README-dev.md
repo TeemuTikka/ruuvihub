@@ -742,8 +742,8 @@ remain read-only. The reusable release workflow receives no inherited
 repository secrets. External Actions are pinned to commit hashes.
 
 `.github/dependabot.yml` schedules weekly Python and Actions updates. Python
-updates are grouped by dependency across the root and test requirements, so
-shared requirements move together in one PR per package. Enable Dependabot
+updates across the root and test requirements are grouped together, and
+GitHub Actions updates are grouped together in a separate PR. Enable Dependabot
 alerts/security updates in repository settings. After making
 the repository public, enable secret scanning, push protection, and GitHub
 private vulnerability reporting (the route chosen in [SECURITY.md](SECURITY.md)).
