@@ -3,4 +3,4 @@ pytest-asyncio>=1.4.0
 ruuvitag-sensor>=4.1.0
 requests>=2.34.2
 httpx>=0.28.1
-httpx2>=2.13.1
+httpx2>=2.16.0
