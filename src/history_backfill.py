@@ -4,8 +4,7 @@ RuuviTag firmware 3.x (>= 3.30.0) maintains a rolling on-device flash log
 of temperature/humidity/pressure, retrievable over a GATT (Bluetooth
 connection) channel independent of the passive BLE advertisements that
 ``scanner.py`` normally reads. This module wraps
-``RuuviTagSensor.download_history()`` (from the already-used
-``ruuvitag-sensor`` dependency) to pull that log and reconstruct it into
+``tag_history.download_history()`` to pull that log and reconstruct it into
 records shaped like normal live-scan rows, so gaps caused by a Pi/BLE
 outage can be partially filled in.
 
@@ -21,7 +20,7 @@ measurement type as a separate log entry, and per the ``ruuvitag-sensor``
 library's own docstring, callers must merge them by timestamp themselves.
 Timestamps for the temperature/humidity/pressure of "the same" sample are
 not guaranteed to be bit-identical, so entries are bucketed into a small
-tolerance window (rounded to the nearest ``_BUCKET_SECONDS``) before being
+tolerance window anchored at the first entry before being
 merged into one record.
 """
 
@@ -31,7 +30,7 @@ import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ruuvitag_sensor.ruuvi import RuuviTagSensor
+from tag_history import download_history
 
 logger = logging.getLogger(__name__)
 
@@ -150,19 +149,19 @@ async def backfill_tag(
             logger.warning("Could not parse stored timestamp %r for %s", since, mac)
 
     try:
-        # Older scanners stored compact IDs; Bleak/BlueZ expects a MAC
+        # Advertisement payloads contain compact IDs; Bleak expects a MAC
         # address with separators. Keep the stored ID on returned records.
         connection_address = mac
         if re.fullmatch(r"[0-9a-fA-F]{12}", mac):
             connection_address = ":".join(mac[i:i + 2] for i in range(0, 12, 2)).upper()
         raw_entries = await asyncio.wait_for(
-            RuuviTagSensor.download_history(connection_address, start_time=start_time),
+            download_history(connection_address, start_time=start_time),
             timeout=timeout_seconds,
         )
     except Exception as exc:
         logger.warning(
-            "History backfill failed for %s (unreachable, or firmware < 3.30.0)",
-            mac,
+            "History backfill failed for %s: %s; cursor unchanged",
+            mac, exc,
             exc_info=True,
         )
         raise BackfillError(f"History pull failed for {mac}") from exc

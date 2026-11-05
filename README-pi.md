@@ -342,6 +342,13 @@ page's **History Backfill** section:
 Backfilled readings are stored and displayed exactly like normal scans —
 no separate view or export needed.
 
+A history download is saved only after the tag sends its end-of-log marker.
+Interrupted or stalled transfers leave the backfill cursor unchanged for a
+later retry. Logs distinguish discovery/connection attempt failures from an
+incomplete transfer. Seeing live advertisements alone does not confirm that
+the tag accepts GATT connections or supports history: check firmware and
+Bluetooth range if history connections keep failing.
+
 ---
 
 ## 10. HTTPS and certificates

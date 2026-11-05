@@ -290,13 +290,13 @@ scanner.py needing to import `settings.py` at all).
 
 ### `src/history_backfill.py` — GATT history backfill
 Enabled by default (startup pass only; periodic backfill remains opt-in). Wraps
-`RuuviTagSensor.download_history()` with a per-tag timeout controlled by
+`tag_history.download_history()` with a per-tag timeout controlled by
 `history_backfill_timeout_seconds` (120s by default), so one unreachable
 tag cannot stall a whole cycle indefinitely:
 
 - **`merge_history_entries(entries)`** — the GATT log yields one entry
   per measurement type (temperature *or* humidity *or* pressure) with
-  its own Unix timestamp; the library does not merge these itself, and
+  its own Unix timestamp; the transport does not merge these itself, and
   timestamps for "the same" sample aren't guaranteed to be identical.
   This sorts entries by timestamp and greedily groups each one into the
   current group if it's within ~10s of that group's starting timestamp
@@ -307,7 +307,7 @@ tag cannot stall a whole cycle indefinitely:
   a fixed-width bucket) avoids splitting close entries that straddle a
   bucket boundary.
 - **`backfill_tag(mac, since)`** — pulls + merges history for one tag,
-  converting legacy compact sensor IDs to colon-separated Bluetooth addresses
+  converting compact advertisement sensor IDs to colon-separated Bluetooth addresses
   for the connection while retaining the original ID in stored records,
   filtered to strictly after `since` (dedup against already-stored
   data). Raises `BackfillError` on any failure (BLE error, firmware
@@ -346,6 +346,25 @@ requested start time to the end of the log; they cannot select an arbitrary
 missing interval. See the upstream [GATT protocol](https://github.com/ruuvi/ruuvi-sensor-protocols/blob/56978e49afbeff2e1d19373ee05d0a419c4da0b4/gatt_formats.md)
 and [library implementation](https://github.com/ttu/ruuvitag-sensor/blob/ba861e53bdb896a5d4d752e51163dc600c4543a3/ruuvitag_sensor/ruuvi.py)
 for the wire format and history API.
+
+### `src/tag_history.py` — strict GATT transport
+
+Uses Bleak directly for RuuviTag environmental history. Each connection retry
+discovers a fresh `BLEDevice` and creates a fresh client. Discovery stays active
+until connection succeeds, avoiding BlueZ removing the device when discovery
+stops; the regular scan loop remains excluded by the shared BLE lock.
+Discovery and connection have 10s and 20s timeouts, with at most three attempts,
+all within the configured per-tag backfill timeout.
+
+Only the exact protocol end marker completes a download, including an empty
+log. An idle notification timeout (10s), disconnect, device error or malformed
+history packet fails the download, discards its partial result and leaves the
+cursor unchanged so the range can be retried. The reader decodes full 32-bit
+values: signed temperature in hundredths of a degree, humidity in hundredths
+of a percent, and pressure in pascals converted to hPa. This bypasses the
+ruuvitag-sensor 4.1.0 history reader's silent partial returns, truncated values
+and reuse of a client with a stale BlueZ device path. Advertisement scanning
+continues to use ruuvitag-sensor.
 
 ### `src/uploader.py` — `Uploader`
 Constructed with a `SettingsStore` (`Uploader(settings_store)`), so it
