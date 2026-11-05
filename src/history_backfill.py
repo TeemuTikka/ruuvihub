@@ -27,6 +27,7 @@ merged into one record.
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -149,8 +150,13 @@ async def backfill_tag(
             logger.warning("Could not parse stored timestamp %r for %s", since, mac)
 
     try:
+        # Older scanners stored compact IDs; Bleak/BlueZ expects a MAC
+        # address with separators. Keep the stored ID on returned records.
+        connection_address = mac
+        if re.fullmatch(r"[0-9a-fA-F]{12}", mac):
+            connection_address = ":".join(mac[i:i + 2] for i in range(0, 12, 2)).upper()
         raw_entries = await asyncio.wait_for(
-            RuuviTagSensor.download_history(mac, start_time=start_time),
+            RuuviTagSensor.download_history(connection_address, start_time=start_time),
             timeout=timeout_seconds,
         )
     except Exception as exc:

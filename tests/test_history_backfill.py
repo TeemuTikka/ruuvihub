@@ -60,6 +60,22 @@ class TestMergeHistoryEntries:
 
 class TestBackfillTag:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("address, expected", [
+        ("aabbccddee01", "AA:BB:CC:DD:EE:01"),
+        (MAC_1, MAC_1),
+        ("12345678-1234-1234-1234-123456789abc", "12345678-1234-1234-1234-123456789abc"),
+    ])
+    async def test_connection_address_preserves_stored_sensor_id(self, address, expected):
+        from history_backfill import backfill_tag
+
+        download = AsyncMock(return_value=[{"timestamp": _ts(), "temperature": 22.5}])
+        with patch("history_backfill.RuuviTagSensor.download_history", new=download):
+            records = await backfill_tag(address, since=None)
+
+        download.assert_awaited_once_with(expected, start_time=None)
+        assert records[0]["mac"] == address
+
+    @pytest.mark.asyncio
     async def test_returns_merged_records_for_fresh_tag(self):
         from history_backfill import backfill_tag
 

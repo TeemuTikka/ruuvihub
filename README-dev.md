@@ -307,6 +307,8 @@ tag cannot stall a whole cycle indefinitely:
   a fixed-width bucket) avoids splitting close entries that straddle a
   bucket boundary.
 - **`backfill_tag(mac, since)`** — pulls + merges history for one tag,
+  converting legacy compact sensor IDs to colon-separated Bluetooth addresses
+  for the connection while retaining the original ID in stored records,
   filtered to strictly after `since` (dedup against already-stored
   data). Raises `BackfillError` on any failure (BLE error, firmware
   < 3.30.0, timeout) rather than swallowing it, so the caller can count
