@@ -218,7 +218,7 @@ async def initialize_pre_scan_backfill_cursors(settings, storage) -> None:
             await storage.set_backfill_cursor(mac, latest)
 
 
-async def run_backfill_for_known_tags(settings, storage, settings_store) -> None:
+async def run_backfill_for_known_tags(settings, storage, settings_store) -> dict:
     """Run a full backfill pass over every eligible known tag, sequentially.
 
     Eligible tags are the configured whitelist (``settings.tag_addresses``)
@@ -249,6 +249,9 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> None
         candidate_macs = await storage.known_macs()
     macs = [mac for mac in candidate_macs if mac not in disabled]
 
+    result = {"succeeded": 0, "failed": 0, "skipped": len(candidate_macs) - len(macs), "recovered": 0}
+    logger.info("History backfill starting: %d eligible tag(s), %d disabled", len(macs), result["skipped"])
+
     # Seed from persisted counts so partial failure runs from previous processes
     # carry forward; don't overwrite in-session increments already in memory.
     for mac, count in settings.history_backfill_failure_counts.items():
@@ -265,6 +268,7 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> None
                 mac, since, timeout_seconds=settings.history_backfill_timeout_seconds
             )
         except BackfillError:
+            result["failed"] += 1
             _consecutive_failures[mac] = _consecutive_failures.get(mac, 0) + 1
             await settings_store.set_backfill_failure_count(mac, _consecutive_failures[mac])
             if _consecutive_failures[mac] >= settings.history_backfill_failure_threshold:
@@ -296,4 +300,11 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> None
         # it). Only advanced on success, never on failure, so a failed
         # pull's gap is retried next time instead of silently skipped.
         await storage.set_backfill_cursor(mac, pull_started_at)
+        result["succeeded"] += 1
+        result["recovered"] += len(records)
 
+    logger.info(
+        "History backfill finished: %d succeeded, %d failed, %d disabled, %d recovered record(s)",
+        result["succeeded"], result["failed"], result["skipped"], result["recovered"],
+    )
+    return result

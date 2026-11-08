@@ -349,6 +349,15 @@ incomplete transfer. Seeing live advertisements alone does not confirm that
 the tag accepts GATT connections or supports history: check firmware and
 Bluetooth range if history connections keep failing.
 
+An iPhone running Ruuvi Station with **Keep connection** / background
+Bluetooth connection enabled can occupy the tag's connection and prevent
+RuuviHub from downloading history, even while live advertisements remain
+visible. The app's **Heartbeat** data source (**Syke** in Finnish) indicates
+connected data. Disable that sensor's persistent phone connection, or
+temporarily turn Bluetooth off in the iPhone's Settings app, then use
+**Re-enable** if the tag was auto-disabled and **Sync history now** to retry.
+See [Ruuvi's explanation of the connection conflict](https://f.ruuvi.com/t/ruuvi-station-app-sync-function-not-working/7219).
+
 ---
 
 ## 10. HTTPS and certificates

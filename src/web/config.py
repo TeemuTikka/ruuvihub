@@ -292,11 +292,14 @@ async def _run_manual_sync(settings_store, storage, ble_lock, app_state) -> None
     Holds ``ble_lock`` for the whole pass, same as history_backfill_loop,
     so it never runs BLE operations at the same time as scan_loop.
     """
+    app_state.backfill_sync_status["result"] = None
+    app_state.backfill_sync_status["error"] = False
     try:
-        settings = await settings_store.get()
         async with ble_lock:
-            await run_backfill_for_known_tags(settings, storage, settings_store)
+            settings = await settings_store.get()
+            app_state.backfill_sync_status["result"] = await run_backfill_for_known_tags(settings, storage, settings_store)
     except Exception:
+        app_state.backfill_sync_status["error"] = True
         logger.exception("Manual 'sync history now' pass failed")
     finally:
         app_state.backfill_sync_status["running"] = False

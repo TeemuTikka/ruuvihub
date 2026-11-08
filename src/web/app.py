@@ -115,7 +115,7 @@ def create_app(
     # sync is currently in flight (to avoid double-triggering) and when
     # the last one finished, so the page can show simple status text
     # without a full progress UI.
-    app.state.backfill_sync_status = {"running": False, "last_synced_at": None}
+    app.state.backfill_sync_status = {"running": False, "last_synced_at": None, "result": None, "error": False}
     app.state.templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     # Exposed as a Jinja global (not per-route context) so every template
     # can render it in a footer without each route handler wiring it in.

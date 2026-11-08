@@ -324,6 +324,11 @@ tag cannot stall a whole cycle indefinitely:
   (scanning and backfill run independently). The cursor only ever
   advances when a backfill pass for that tag actually completes.
 - **`run_backfill_for_known_tags(settings, storage, settings_store)`** —
+  returns and logs counts of successful, failed and disabled tags and
+  recovered records. The manual sync status displays these counts, including
+  when no tags synced, and reports unexpected errors explicitly. The manual
+  sync reads settings after acquiring the BLE lock so queued requests use
+  current disabled-tag settings. This function
   orchestrates a full pass: builds the eligible tag list (whitelist or
   `storage.known_macs()`, minus anything in
   `settings.history_backfill_disabled_tags`), processes tags

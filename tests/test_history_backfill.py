@@ -362,3 +362,20 @@ async def test_failed_persistence_does_not_advance_backfill_cursor(tmp_path):
         await run_backfill_for_known_tags(settings, storage, store)
     assert await storage.get_history(MAC_1) == [record]
     assert await storage.get_backfill_cursor(MAC_1) > since
+
+
+@pytest.mark.asyncio
+async def test_pass_reports_success_failure_disabled_and_recovered():
+    from history_backfill import run_backfill_for_known_tags, BackfillError, _consecutive_failures
+
+    _consecutive_failures.clear()
+    settings = _FakeSettings(disabled_tags={"disabled": "unreachable"})
+    storage = _FakeStorage(known_macs=[MAC_1, MAC_2, "disabled"])
+    record = {"mac": MAC_1, "timestamp": "2026-09-25T00:00:00+00:00"}
+    with patch("history_backfill.backfill_tag", new=AsyncMock(side_effect=[[record], BackfillError()])):
+        result = await run_backfill_for_known_tags(settings, storage, _FakeSettingsStore())
+    assert result == {"succeeded": 1, "failed": 1, "skipped": 1, "recovered": 1}
+    assert storage.added == [(MAC_1, record)]
+    assert MAC_1 in storage._backfill_cursors
+    assert MAC_2 not in storage._backfill_cursors
+    _consecutive_failures.clear()
