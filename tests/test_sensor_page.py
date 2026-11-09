@@ -71,7 +71,7 @@ def test_sensor_page_uses_friendly_name_when_configured(tmp_path):
     assert response.status_code == 200
     assert "Living Room" in response.text
     assert f'data-mac="{MAC_1}"' in response.text
-    assert 'data-range="24h"' in response.text
+    assert 'data-range="3d"' in response.text
 
 
 def test_sensor_page_falls_back_to_mac_when_unnamed(tmp_path):
@@ -309,7 +309,7 @@ def test_history_api_downsamples_long_ranges(tmp_path):
     assert payload[-1]["timestamp"] == (base + timedelta(minutes=504)).isoformat()
 
 
-@pytest.mark.parametrize("range_value,hours", [("1h", 1), ("24h", 24), ("7d", 168), ("30d", 720)])
+@pytest.mark.parametrize("range_value,hours", [("1h", 1), ("24h", 24), ("3d", 72), ("7d", 168), ("14d", 336), ("30d", 720), ("180d", 4320), ("360d", 8640)])
 def test_chart_uses_exact_selected_bounds_even_with_sparse_or_empty_data(tmp_path, range_value, hours):
     app, storage, _ = build_app(tmp_path)
     client = TestClient(app)

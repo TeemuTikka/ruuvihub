@@ -6,7 +6,7 @@
 <form class="form-panel" method="post" action="/config/dashboard">
   <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
   {% if saved %}<p class="success-msg">Dashboard settings saved.</p>{% endif %}
-  {% if error %}<p class="error">Enter a positive refresh interval and a comparison period between 1 and {{ max_change_hours }} hours. Select only available sensors and measurements.</p>{% endif %}
+  {% if error %}<p class="error">Enter a positive refresh interval. Select only available sensors and measurements.</p>{% endif %}
   <section class="section">
     <h2>Measurements on sensor cards</h2>
     <p class="hint">Choose the values shown on every sensor card. Names and last-seen times remain visible.</p>
@@ -18,16 +18,6 @@
       </div>
       {% endfor %}
     </div>
-  </section>
-  <section class="section">
-    <h2>Temperature comparison</h2>
-    <div class="field-grid">
-      <div class="field field-narrow">
-        <label for="dashboard_change_hours">Compare with (hours ago)</label>
-        <input id="dashboard_change_hours" name="dashboard_change_hours" type="number" min="1" max="{{ max_change_hours }}" value="{{ settings.dashboard_change_hours }}" required>
-      </div>
-    </div>
-    <p class="hint">Default: 1 hour. Uses the closest temperature within ±10 minutes of the selected time. Shows — if there is no match or the latest reading is more than 10 minutes old.</p>
   </section>
   <section class="section">
     <h2>Sensors on the dashboard</h2>

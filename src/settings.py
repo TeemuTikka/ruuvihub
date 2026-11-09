@@ -48,7 +48,7 @@ from typing import Dict, List, Optional
 
 from config import Config, load_config
 from datetime_formats import DEFAULT_DATETIME_FORMAT, DATETIME_FORMATS
-from dashboard_preferences import DEFAULT_DASHBOARD_METRICS, MAX_DASHBOARD_CHANGE_HOURS
+from dashboard_preferences import DEFAULT_DASHBOARD_METRICS, MAX_DASHBOARD_CHANGE_HOURS, LEGACY_METRICS
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +153,9 @@ def validate_fields(data: dict) -> dict:
     validated = dict(data)
     if "dashboard_visible_metrics" in validated:
         metrics = validated["dashboard_visible_metrics"]
+        if isinstance(metrics, list) and all(isinstance(key, str) for key in metrics):
+            metrics = list(dict.fromkeys(LEGACY_METRICS.get(key, key) for key in metrics))
+            validated["dashboard_visible_metrics"] = metrics
         if not isinstance(metrics, list) or any(key not in DEFAULT_DASHBOARD_METRICS for key in metrics):
             logger.warning("Ignoring invalid dashboard metrics")
             validated.pop("dashboard_visible_metrics")

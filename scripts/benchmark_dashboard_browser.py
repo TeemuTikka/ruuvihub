@@ -32,28 +32,34 @@ def verify(page):
       const check = (condition, message) => { if (!condition) throw Error(message); };
       const a = {mac: 'AA:BB:CC:DD:EE:FF', name: '<img src=x onerror=alert(1)>',
         timestamp: '2026-10-03T23:59:55Z', temperature: 20, humidity: null,
-        pressure: 1000, battery: 2900, stale: false};
+        pressure: 1000, battery: 2900, stale: false, temperature_low: 17, temperature_high: 22,
+        trend_path: "M2,2 L100,50"};
       const b = {...a, mac: '112233445566', name: 'Second'};
-      // Adopt the server-rendered anchor rather than replacing it.
+      // Adopt the server-rendered weather card rather than replacing it.
       const grid = document.getElementById('card-grid');
-      grid.innerHTML = '<a class="card" data-mac="AA:BB:CC:DD:EE:FF" href="/sensor/AA:BB:CC:DD:EE:FF">' +
+      grid.innerHTML = '<article class="card" data-mac="AA:BB:CC:DD:EE:FF"><a class="card-main">' +
         '<div class="card-name">Initial</div><div class="card-meta"></div>' +
-        '<dl class="card-metrics"><dt>Temp</dt><dd></dd><dt class="hour-change-label">Change / 1h</dt>' +
-        '<dd class="hour-change"></dd><dt>Day</dt><dd></dd><dt>Night</dt><dd></dd>' +
-        '<dt>Humidity</dt><dd></dd><dt>Pressure</dt><dd></dd><dt>Battery</dt><dd></dd></dl></a>';
+        '<dl class="card-metrics"><dt>Now</dt><dd></dd><dt>Humidity</dt><dd></dd>' +
+        '<dt>Pressure</dt><dd></dd><dt>Battery</dt><dd></dd></dl>' +
+        '<div class="card-extremes"><span class="card-window"></span><strong class="card-range"></strong></div>' +
+        '<div class="card-trend"><svg viewBox="0 0 240 64" role="img"><path /></svg>' +
+        '<p class="trend-empty">Temperature trend unavailable in this window</p>' +
+        '<div class="trend-axis"><span>Now</span><span class="trend-since"></span></div></div>' +
+        '<span class="card-history-link">View history →</span></a></article>';
       const initial = grid.firstElementChild;
       renderCards([a, b]);
-      check(grid.firstElementChild === initial, 'SSR anchor replaced');
+      check(grid.firstElementChild === initial, 'SSR card replaced');
       check(!grid.querySelector('img'), 'Name interpreted as HTML');
       check(initial.querySelector('.card-name').textContent === a.name, 'Name mismatch');
       check(initial.querySelectorAll('dd')[1].textContent === '—', 'Null metric mismatch');
       check(getComputedStyle(initial.querySelector('.stale-flag')).display === 'none', 'Fresh card shows stale flag');
-      initial.focus();
+      const focused = initial.querySelector("a");
+      focused.focus();
       const observer = new MutationObserver(() => {});
       observer.observe(grid, {subtree: true, childList: true, attributes: true, characterData: true});
       renderCards([a, b]);
       check(observer.takeRecords().length === 0, 'Unchanged refresh mutates DOM');
-      check(document.activeElement === initial, 'Unchanged refresh loses focus');
+      check(document.activeElement === focused, 'Unchanged refresh loses focus');
       renderCards([{...a, temperature: 21, stale: true}, b]);
       check(initial.querySelector('dd').textContent === '21.0 °C', 'Metric update missing');
       check(!initial.querySelector('.stale-flag').hidden, 'Stale flag missing');
@@ -66,10 +72,17 @@ def verify(page):
       renderCards([a]);
       check(grid.children.length === 1 && grid.firstElementChild === initial, 'Removal mismatch');
       renderCards([]);
-      check(grid.querySelector('p') && !grid.querySelector('a'), 'Empty state mismatch');
+      check(grid.querySelector(':scope > p') && !grid.querySelector('a'), 'Empty state mismatch');
       renderCards([b]);
-      check(!grid.querySelector('p') && grid.querySelector('a'), 'Empty recovery mismatch');
-      check(grid.querySelector('a').getAttribute('href') === '/sensor/112233445566', 'Link mismatch');
+      check(!grid.querySelector(':scope > p') && grid.querySelector('a'), 'Empty recovery mismatch');
+      check(grid.querySelector('a').getAttribute('href') === '/sensor/112233445566?range=24h', 'Link mismatch');
+      renderCards([{...b, trend_path: '', temperature_low: null, temperature_high: null}]);
+      check(grid.querySelector('svg').hasAttribute('hidden'), 'Empty trend not hidden');
+      check(!grid.querySelector('.trend-empty').hidden, 'Empty trend message missing');
+      renderCards([b], {history_hours: 6});
+      check(!grid.querySelector('svg').hasAttribute('hidden'), 'Restored trend remains hidden');
+      check(grid.querySelector('a').getAttribute('href').endsWith('?range=6h'), 'Selected window link mismatch');
+      check(grid.querySelector('.card-window').textContent.includes('6h'), 'Window label mismatch');
       observer.disconnect();
     }""")
 

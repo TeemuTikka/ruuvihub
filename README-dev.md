@@ -86,7 +86,9 @@ launch configurations:
 4. Use **Run and Debug** and select **RuuviHub: Demo dashboard (F5)**,
    then press **F5**. VS Code opens `http://localhost:8080` when the server
    is ready. Three dummy sensors have 24 hours of seeded chart history;
-   one is deliberately stale. The demo binds only to `127.0.0.1`, uses
+   one is deliberately stale. The synthetic readings and scan cadence are
+   both five minutes, so trend lines reflect continuous demo history.
+   The demo binds only to `127.0.0.1`, uses
    temporary settings/data that are removed when it stops normally, and
    starts no scanning, backfill, or cloud-upload loops. Each launch starts
    fresh and leaves your regular settings/database untouched.
@@ -255,12 +257,13 @@ Two views over the data, plus a third for full history:
   the full on-disk SQLite history directly for one tag (bypasses the
   bounded ring buffer entirely), used by the sensor history page/API and
   CSV export.
-- **`get_temperature_summaries(...)`** — computes dashboard day/night
-  minima and maxima in SQL and selects the closest numeric temperature
-  to the configured comparison time within ±10 minutes (ties prefer the newest timestamp,
-  then insertion). All tags share one connection/read snapshot and
-  executor call; history payloads are not loaded into Python. Query work
-  still grows with the number of readings in the selected windows.
+- **`get_weather_summaries(...)`** — computes exact numeric temperature minima
+  and maxima over the rolling window, independently of the cache and sampling.
+  It samples at most 60 trend records per tag using the existing gap-aware
+  chart query. Extrema and chart selection share one connection/read snapshot
+  and executor call. Query work still grows with the selected history.
+  `get_temperature_summaries(...)` remains a legacy helper for day/night and
+  nearest-time comparisons; dashboard cards use the rolling summaries.
 - **`get_chart_history(...)`** — samples at most 500 records by default.
   SQL detects gaps over the complete selected range, groups gap counts
   into sampling buckets, and computes cumulative segment counters over
@@ -452,14 +455,13 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   saved name for equivalent keys and matching MACs case/separator-insensitively
   via `mac_utils.compact_upper()` (see below) so a name saved when a
   tag's MAC was recorded in a different textual shape still resolves.
-  Temperature cards also show signed temperature change and day/night
-  minima and maxima from SQL summaries. Change defaults to one hour and
-  can compare 1–168 hours ago. It displays `—` without
-  a comparison within ±10 minutes of the chosen time, or a valid current
-  reading within the last 10 minutes. Day runs from 07:00 to 22:00 in the
-  server's local timezone; night shows the current night or the most
-  recently completed night. Each local boundary is converted separately
-  to UTC so overnight daylight-saving changes use the correct offsets.
+  Cards show rolling temperature extrema and an SVG trend for the last
+  6/12/24/48/72 hours, defaulting to 24. `?hours=` selects the window for both
+  the HTML and `/api/current`; unsupported values fall back to 24. Windows
+  subtract elapsed hours in UTC, so midnight and daylight-saving changes do
+  not create empty or shortened periods. Trends use actual sample timestamps
+  and break at missing values and segment changes, with now on the left.
+  A single View history link opens that hourly range on the sensor page.
   Sensor cards appear first; optional storage metadata appears as small,
   inline text in the footer, with no separate heading or panel.
   The footer sits at the bottom of short pages and follows the content
@@ -467,8 +469,8 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   It includes the running release version (`dev` for a source checkout).
   Hidden sensor MACs are matched case/separator-insensitively before
   summary queries. `GET /api/current` includes `dashboard_options` with
-  visible metrics, comparison hours, and refresh seconds. Cards return
-  `temperature_change` for the selected period. Polling applies new
+  visible metrics, selected `history_hours`, and refresh seconds. Cards return
+  `temperature_low`, `temperature_high`, `reading_count`, and `trend_path`. Polling applies new
   preferences to existing nodes and adjusts its timer without a reload.
   Shared timestamp formatting applies the configured Finnish or ISO
   display to initial HTML, dashboard polling, charts, and live logs.
@@ -484,6 +486,12 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   lowercase hex vs. canonical uppercase colon-separated) still finds the
   right history rows and friendly name instead of silently returning
   nothing.
+  The sensor view defaults to the last 3 days, with 6/12/24/48/72-hour and
+  3/7/14/30/180/360-day controls. Dashboard cards link to their hourly window. It displays the latest reading in that window
+  above temperature, humidity and pressure charts, with now on the left and
+  older readings to the right. Polling reuses chart instances and refreshes
+  the bounds through now. Legacy 1h/24h/all URLs and battery CSV fields
+  remain supported.
   The chart request adds `?chart=true` to receive `{records, since, until}`.
   The bounds cover the full selected time window through the server's current
   time, including empty periods. Each record's `_chart_segments` tracks gaps
@@ -508,6 +516,10 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   field; `db_path` has no input on this page at all (file-only).
 - **`dashboard_config.py`** — admin-only `GET/POST /config/dashboard`.
   Saves only dashboard preferences, with CSRF protection and validation.
+  Legacy day/night visibility keys migrate to `temperature_range`, and
+  `temperature_change` migrates to `temperature_trend` when settings are loaded
+  or updated, preserving empty selections. The legacy comparison-hours field
+  remains readable but has no dashboard control.
   Metrics can all be deselected; new sensors remain visible when they
   arrive after a form was loaded. System saves do not change dashboard
   preferences. The configuration pages share navigation between system

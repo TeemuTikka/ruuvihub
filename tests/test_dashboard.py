@@ -53,42 +53,20 @@ def test_temperature_summary_boundaries_across_dst(tmp_path, monkeypatch, date):
 
             patch.setattr(storage, "get_history", no_history)
             cards = asyncio.run(dashboard._build_dashboard_cards(storage, Settings()))
-            assert cards[0]["night_temperature_low"] == 5
-            assert cards[0]["night_temperature_high"] == 5
-            assert cards[0]["day_temperature_low"] == 20
-            assert cards[0]["day_temperature_high"] == 25
-            assert cards[0]["temperature_change"] is None
+            assert cards[0]["temperature_low"] == -100
+            assert cards[0]["temperature_high"] == 25
+            assert cards[0]["reading_count"] == 4
         finally:
             # Restore the process timezone as well as the environment.
             patch.undo()
             system_time.tzset()
 
 
-@pytest.mark.parametrize("samples,expected", [
-    ([(3600, 10), (60, 12.4)], 2.4),
-    ([(3300, 14), (3480, 10), (60, 8)], -2.0),
-    ([(4200, 10), (60, 12)], 2.0),
-    ([(3000, 10), (60, 12)], 2.0),
-    ([(4201, 10), (60, 12)], None),
-    ([(2999, 10), (60, 12)], None),
-    ([(3600, 10), (601, 12)], None),
-    ([(3600, 10), (600, 12)], 2.0),
-    ([(3600, 10), (60, None)], None),
-    ([(3600, None), (60, 12)], None),
-    ([(3600, False), (3660, 10), (60, 12)], 2.0),
-    ([(3600, "invalid"), (60, 12)], None),
-    ([(3900, 10), (3300, 11), (60, 12)], 1.0),
-    ([(3600, 10), (3600, 11), (60, 12)], 1.0),
-    ([(60, 12)], None),
-    ([(3600, 10), (-60, 12)], None),
-    ([(3600, 12), (60, 12)], 0.0),
-    ([(3600, 12), (60, 11.99)], 0.0),
-])
-def test_hourly_temperature_change_with_sparse_readings(tmp_path, monkeypatch, samples, expected):
+@pytest.mark.parametrize("hours", [6, 12, 24, 48, 72])
+def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, monkeypatch, hours):
     import asyncio
     import web.dashboard as dashboard
-
-    now = datetime(2026, 10, 6, 12, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 6, 0, 1, tzinfo=timezone.utc)
 
     class FrozenDatetime(datetime):
         @classmethod
@@ -96,21 +74,31 @@ def test_hourly_temperature_change_with_sparse_readings(tmp_path, monkeypatch, s
             return now.astimezone(tz) if tz else now.astimezone().replace(tzinfo=None)
 
     client, storage, _ = build_client(tmp_path)
-    for age, temperature in samples:
+    for age, temperature in [(hours * 3600 + 1, -100), (hours * 3600, -5),
+                             (3600, 20), (0, 10), (-60, 999)]:
         asyncio.run(storage.add(MAC_1, make_record(
             timestamp=(now - timedelta(seconds=age)).isoformat(), temperature=temperature,
         )))
     monkeypatch.setattr(dashboard, "datetime", FrozenDatetime)
-    card = client.get("/api/current").json()["cards"][0]
-    assert card["temperature_change"] == expected
-    assert "previous_temperature" not in card
-    page = client.get("/").text
-    assert "Previous temp" not in page
-    if expected is None:
-        assert 'class="hour-change">—</dd>' in page
-    else:
-        value = f'{"+" if expected > 0 else ""}{expected:.1f} °C'
-        assert f'class="hour-change">{value}</dd>' in page
+    payload = client.get(f"/api/current?hours={hours}").json()
+    card = payload["cards"][0]
+    assert payload["dashboard_options"]["history_hours"] == hours
+    assert card["temperature_low"] == -5
+    assert card["temperature_high"] == 20
+    assert card["reading_count"] == 3
+    assert card["trend_path"].count("M") >= 2  # Actual gaps remain visible.
+    page = client.get(f"/?hours={hours}").text
+    assert f"Last {hours}h · Low / high" in page
+    assert "Day low / high" not in page and "Night low / high" not in page
+    assert "Change /" not in page
+
+
+@pytest.mark.parametrize("hours", [None, "invalid", "1", "26", "-6"])
+def test_rolling_window_defaults_to_24_hours(tmp_path, hours):
+    client, _, _ = build_client(tmp_path)
+    url = "/api/current" if hours is None else f"/api/current?hours={hours}"
+    assert client.get(url).json()["dashboard_options"]["history_hours"] == 24
+
 
 
 def build_client(tmp_path):

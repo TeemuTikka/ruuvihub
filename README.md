@@ -84,32 +84,28 @@ release-package install/update/rollback flow.
 | Page | URL | What it does |
 |---|---|---|
 | Dashboard | `/` | Public, read-only card grid of selected sensors' latest readings, refreshing automatically (poll interval configurable, default 300s). Cards show a friendly name (if you've set one) or the raw MAC address, and flag a tag as stale if it hasn't reported in over 2x the scan interval. |
-| Sensor history | `/sensor/<mac>` | Public, read-only charts (temperature/humidity/pressure/battery) for one tag, with a time-range selector (1h/24h/7d/30d/all) and a CSV export of the raw readings for the selected range. |
+| Sensor history | `/sensor/<mac>` | Public weather-style history for one tag: latest temperature/humidity/pressure and charts from now into the past, with 6/12/24/48/72-hour and 3/7/14/30/180/360-day windows (3 days by default). Dashboard cards open the selected hourly window. CSV exports include the raw readings, including battery voltage. |
 | System settings | `/config` | Admin login required. Change scanning, tag whitelist, retention, cloud upload, history backfill, friendly names, and your login/password. Most changes apply on the next scan/upload cycle — no restart needed. |
-| Dashboard settings | `/config/dashboard` | Admin login required. Select visible sensors and measurements, temperature comparison period, refresh interval, and storage information in the footer. Saves independently of system settings. |
+| Dashboard settings | `/config/dashboard` | Admin login required. Select visible sensors and measurements, refresh interval, and storage information in the footer. Saves independently of system settings. |
 
-Dashboard cards show temperature change over a configurable period and
-day/night low–high values. In **Settings → Dashboard settings**, choose which
-measurements and sensors to show. The comparison period defaults to 1 hour
-and accepts whole hours from 1 to 168 (one week). It compares the latest
-reading with the closest numeric temperature to that many hours ago,
-within ±10 minutes.
-It shows `—` when there is no matching reading or the latest temperature
-is missing or more than 10 minutes old. Positive values mean warming,
-negative values mean cooling, and zero means no change to one decimal.
-Day is 07:00–22:00 in the server's local timezone. Night shows the
-current night, or the most recently completed night during daytime.
-Daylight-saving changes are accounted for at each window boundary.
+Dashboard cards show current conditions, temperature low/high, and a small
+trend chart for the last **6 / 12 / 24 / 48 / 72 hours** (default **24 hours**).
+Select the window above the cards; it stays selected during automatic refresh.
+Low/high uses all stored readings in the window, including downloaded history.
+The trend runs from now on the left into the past, leaves missing periods blank,
+and marks stale sensors. **View history** opens the matching hourly window;
+longer day ranges and CSV export are available there.
 
-Dashboard preferences are stored in `settings.local.json` as
-`dashboard_visible_metrics`, `dashboard_hidden_tags`, `dashboard_change_hours`,
-`dashboard_refresh_seconds`, and `dashboard_show_storage_info`. Existing
-installations keep all sensors and measurements visible and a one-hour
-comparison by default. New sensors are visible by default. Hidden sensors
-keep their publicly readable history; hiding is a display preference.
-Changes appear on open dashboards at their next poll, including labels,
-visible measurements, selected sensors, refresh timing, and footer storage
-information. These preferences apply to all dashboard viewers.
+In **Settings → Dashboard settings**, choose which measurements and sensors to
+show, the refresh interval, and footer storage information. Preferences are
+stored as `dashboard_visible_metrics`, `dashboard_hidden_tags`,
+`dashboard_refresh_seconds`, and `dashboard_show_storage_info`. Existing day/night
+visibility choices migrate to the rolling range; the old change widget choice
+migrates to trend visibility. The legacy `dashboard_change_hours` field is still
+readable for settings compatibility but no longer controls a displayed widget.
+New sensors are visible by default. Hidden sensors keep their publicly readable
+history. Saved display preferences apply to everyone at the next dashboard poll;
+the history window is selected per page using `?hours=24`.
 
 ## Upload destinations
 

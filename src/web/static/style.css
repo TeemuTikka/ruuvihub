@@ -444,6 +444,7 @@ table td {
 
 .range-selector {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -595,3 +596,48 @@ canvas {
 .log-line.level-error {
   color: var(--danger);
 }
+
+/* Weather history: latest conditions, followed by a timeline into the past. */
+.card-main { display: block; color: inherit; text-decoration: none; }
+.card-main:focus-visible, .card-history a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.card-metrics dd:first-of-type { font-size: 1.7rem; font-weight: 650; line-height: 1; }
+.card-history { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--panel-border); }
+.card-history a { padding: .35rem .55rem; border-radius: 6px; background: var(--bg); font-size: .8rem; text-decoration: none; }
+.card-history a:hover { background: var(--panel-border); }
+.weather-current { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.5rem; padding: 1.75rem; margin: 1rem 0; border: 1px solid var(--panel-border); border-radius: 16px; background: linear-gradient(125deg, #193c50, var(--panel)); }
+.weather-eyebrow { margin: 0 0 .6rem; color: var(--text-dim); font-size: .9rem; }
+.weather-temperature { font-size: clamp(2.8rem, 8vw, 4.5rem); line-height: 1.1; font-weight: 650; letter-spacing: -.04em; margin-bottom: .7rem; }
+.weather-details { display: flex; flex-wrap: wrap; gap: 2rem; margin: 0; }
+.weather-details dt { font-size: .85rem; color: var(--text-dim); margin-bottom: .5rem; }
+.weather-details dd { margin: 0; font-size: 1.35rem; font-weight: 600; }
+.weather-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: center; margin: 1.5rem 0 .6rem; }
+.weather-toolbar .range-selector { margin: 0; }
+.weather-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.weather-chart-panel { min-width: 0; padding: 1.25rem; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 14px; }
+.weather-chart-panel:first-child { grid-column: 1 / -1; }
+.weather-chart-panel h2 { margin: 0 0 1rem; font-size: 1rem; }
+.weather-chart-panel h2 span { color: var(--text-dim); font-size: .85rem; font-weight: normal; }
+.weather-chart { position: relative; height: 220px; }
+.weather-chart canvas { max-width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.weather-chart-panel:first-child .weather-chart { height: 280px; }
+@media (max-width: 600px) {
+  .weather-current { padding: 1.2rem; }
+  .weather-charts { grid-template-columns: minmax(0, 1fr); }
+  .weather-chart-panel { padding: .8rem; }
+  .weather-chart-panel:first-child .weather-chart { height: 230px; }
+}
+
+/* Rolling weather cards. Empty periods keep their true position in the trend. */
+.dashboard-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.dashboard-heading h1 { margin-bottom: .4rem; }
+.dashboard-heading .card-meta, .dashboard-heading .range-selector { margin-bottom: 0; }
+.card [hidden] { display: none !important; }
+.card-extremes { display: flex; flex-direction: column; gap: .4rem; border-top: 1px solid var(--panel-border); padding-top: .9rem; margin-top: 1rem; }
+.card-window, .trend-axis { font-size: .75rem; color: var(--text-dim); }
+.card-range { font-weight: 600; }
+.card-trend { margin-top: 1rem; }
+.card-trend svg { display: block; width: 100%; height: 70px; overflow: visible; }
+.card-trend path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.trend-axis { display: flex; justify-content: space-between; margin-top: .35rem; }
+.trend-empty { color: var(--text-dim); font-size: .8rem; min-height: 48px; }
+.card-history-link { display: block; color: var(--accent); font-size: .85rem; margin-top: 1rem; }

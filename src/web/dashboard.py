@@ -1,6 +1,6 @@
 """Dashboard page with a live-updating card grid of the latest reading per tag."""
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import math
 
@@ -8,7 +8,8 @@ from fastapi import APIRouter, Request
 
 from settings import Settings, SettingsStore
 from mac_utils import compact_upper
-from storage import Storage, TEMPERATURE_CHANGE_TOLERANCE_SECONDS
+from storage import Storage
+from dashboard_preferences import HISTORY_HOURS, DEFAULT_HISTORY_HOURS
 
 router = APIRouter()
 
@@ -43,7 +44,42 @@ def _is_stale(timestamp: Optional[str], scan_interval_seconds: int) -> bool:
     return age_seconds > max(scan_interval_seconds, 1) * 2
 
 
-async def _build_dashboard_cards(storage: Storage, settings: Settings) -> list[dict]:
+def _history_hours(value):
+    try:
+        hours = int(value)
+        return hours if hours in HISTORY_HOURS else DEFAULT_HISTORY_HOURS
+    except (ValueError, TypeError):
+        return DEFAULT_HISTORY_HOURS
+
+
+def _trend_path(samples, since, until, low, high):
+    """Draw actual sample times, starting new SVG subpaths at missing data."""
+    if low is None or high is None:
+        return ""
+    duration = (until - since).total_seconds()
+    path = []
+    previous_segment = None
+    connected = False
+    for sample in samples:
+        value = sample["temperature"]
+        if type(value) not in (int, float) or not math.isfinite(value):
+            connected = False
+            continue
+        stamp = datetime.fromisoformat(sample["timestamp"])
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        x = 2 + (until - stamp).total_seconds() / duration * 236
+        y = 32 if high == low else 2 + (high - value) / (high - low) * 60
+        command = "L" if connected and previous_segment == sample["segment"] else "M"
+        path.append(f"{command}{x:.2f},{y:.2f}")
+        if command == "M":
+            path.append(f"L{x:.2f},{y:.2f}")  # Round caps keep lone samples visible.
+        connected = True
+        previous_segment = sample["segment"]
+    return " ".join(path)
+
+
+async def _build_dashboard_cards(storage: Storage, settings: Settings, history_hours=DEFAULT_HISTORY_HOURS) -> list[dict]:
     """Build dashboard cards, keeping latest-reading work proportional to tags."""
     records = await storage.get_latest_readings()
     hidden_tags = {compact_upper(mac) for mac in settings.dashboard_hidden_tags}
@@ -52,32 +88,13 @@ async def _build_dashboard_cards(storage: Storage, settings: Settings) -> list[d
     for key, name in settings.tag_names.items():
         names.setdefault(compact_upper(key), name)
 
-    # Keep local wall times naive until each boundary is converted to UTC.
-    # astimezone() without a target produces a fixed offset, which must not
-    # be reused for yesterday when a daylight-saving transition intervenes.
-    now = datetime.now()
-    now_utc = now.astimezone(timezone.utc)
-    today = now.date()
-    day_start = datetime.combine(today, time(7))
-    day_end = datetime.combine(today, time(22))
-    if now >= day_end:
-        # Already past tonight's day/night boundary: the night window is
-        # still in progress, running from day_end up to now.
-        night_start = day_end
-        night_end = now
-    else:
-        # Either still in yesterday's night (before day_start) or inside
-        # today's daytime window: last night's window is the completed one.
-        night_start = datetime.combine(today - timedelta(days=1), time(22))
-        night_end = day_start
-    summaries = await storage.get_temperature_summaries(
+    history_hours = _history_hours(history_hours)
+    now_utc = datetime.now(timezone.utc)
+    since = now_utc - timedelta(hours=history_hours)
+    summaries = await storage.get_weather_summaries(
         [record["mac"] for record in records if record.get("mac") is not None],
-        day_start.astimezone(timezone.utc).isoformat(),
-        min(now, day_end).astimezone(timezone.utc).isoformat(),
-        night_start.astimezone(timezone.utc).isoformat(),
-        night_end.astimezone(timezone.utc).isoformat(),
-        now_utc.isoformat(),
-        settings.dashboard_change_hours,
+        since.isoformat(), now_utc.isoformat(),
+        gap_seconds=2 * (settings.scan_interval_seconds + settings.scan_timeout_seconds),
     )
 
     cards = []
@@ -87,21 +104,10 @@ async def _build_dashboard_cards(storage: Storage, settings: Settings) -> list[d
             continue
 
         summary = summaries[mac].copy()
-        hourly_temperature = summary.pop("hour_temperature")
-        temperature_change = None
-        current_temperature = record.get("temperature")
-        if (type(current_temperature) in (int, float)
-                and type(hourly_temperature) in (int, float)
-                and math.isfinite(current_temperature) and math.isfinite(hourly_temperature)):
-            try:
-                seen_at = datetime.fromisoformat(record.get("timestamp", ""))
-                if seen_at.tzinfo is None:
-                    seen_at = seen_at.replace(tzinfo=timezone.utc)
-                age = (now_utc - seen_at).total_seconds()
-                if 0 <= age <= TEMPERATURE_CHANGE_TOLERANCE_SECONDS:
-                    temperature_change = round(current_temperature - hourly_temperature, 1) or 0.0
-            except (TypeError, ValueError):
-                pass
+        trend = summary.pop("trend")
+        summary["trend_path"] = _trend_path(
+            trend, since, now_utc, summary["temperature_low"], summary["temperature_high"],
+        )
 
         cards.append(
             {
@@ -114,7 +120,6 @@ async def _build_dashboard_cards(storage: Storage, settings: Settings) -> list[d
                 "battery": record.get("battery"),
                 "rssi": record.get("rssi"),
                 **summary,
-                "temperature_change": temperature_change,
                 "stale": _is_stale(record.get("timestamp"), settings.scan_interval_seconds),
             }
         )
@@ -127,7 +132,8 @@ async def dashboard_page(request: Request):
     storage: Storage = request.app.state.storage
     settings_store: SettingsStore = request.app.state.settings_store
     settings = await settings_store.get()
-    cards = await _build_dashboard_cards(storage, settings)
+    history_hours = _history_hours(request.query_params.get("hours"))
+    cards = await _build_dashboard_cards(storage, settings, history_hours)
     storage_stats = None
     if settings.dashboard_show_storage_info:
         storage_stats = await storage.get_storage_stats()
@@ -143,7 +149,8 @@ async def dashboard_page(request: Request):
             "storage_stats": storage_stats,
             "refresh_seconds": settings.dashboard_refresh_seconds,
             "visible_metrics": settings.dashboard_visible_metrics,
-            "change_hours": settings.dashboard_change_hours,
+            "history_hours": history_hours,
+            "history_windows": HISTORY_HOURS,
             "using_default_credentials": settings.is_using_default_credentials(),
         },
     )
@@ -154,11 +161,12 @@ async def api_current(request: Request):
     storage: Storage = request.app.state.storage
     settings_store: SettingsStore = request.app.state.settings_store
     settings = await settings_store.get()
+    history_hours = _history_hours(request.query_params.get("hours"))
     response = {
-        "cards": await _build_dashboard_cards(storage, settings),
+        "cards": await _build_dashboard_cards(storage, settings, history_hours),
         "dashboard_options": {
             "visible_metrics": settings.dashboard_visible_metrics,
-            "change_hours": settings.dashboard_change_hours,
+            "history_hours": history_hours,
             "refresh_seconds": settings.dashboard_refresh_seconds,
         },
     }

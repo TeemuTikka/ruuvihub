@@ -12,15 +12,8 @@ function formatTemperatureRange(low, high) {
   return `${Number(low).toFixed(1)} / ${Number(high).toFixed(1)} °C`;
 }
 
-function formatTemperatureChange(value) {
-  if (value === null || value === undefined) return "—";
-  const number = Number(value);
-  return `${number > 0 ? "+" : ""}${number.toFixed(1)} °C`;
-}
-
 const dashboardNodes = new Map();
-const dashboardMetricKeys = ["temperature", "temperature_change", "day_temperature_range",
-  "night_temperature_range", "humidity", "pressure", "battery"];
+const dashboardMetricKeys = ["temperature", "humidity", "pressure", "battery"];
 
 function rememberCard(node) {
   const stale = node.querySelector(".stale-flag") || document.createElement("span");
@@ -37,11 +30,24 @@ function rememberCard(node) {
     metrics: Array.from(node.querySelectorAll("dd")),
     labels: Array.from(node.querySelectorAll(".card-metrics dt")),
     stale,
+    link: node.querySelector(".card-main"),
+    range: node.querySelector(".card-range"),
+    window: node.querySelector(".card-window"),
+    extremes: node.querySelector(".card-extremes"),
+    trend: node.querySelector(".card-trend"),
+    svg: node.querySelector("svg"),
+    path: node.querySelector("svg path"),
+    empty: node.querySelector(".trend-empty"),
+    since: node.querySelector(".trend-since"),
   };
 }
 
 function setText(node, value) {
   if (node.textContent !== value) node.textContent = value;
+}
+
+function setHidden(node, hidden) {
+  if (node.hasAttribute("hidden") !== hidden) node.toggleAttribute("hidden", hidden);
 }
 
 // Mirrored in _format_bytes (web/dashboard.py) for the server-rendered
@@ -93,13 +99,13 @@ function renderStorageStats(stats) {
 
 function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
   window.DASHBOARD_OPTIONS = options;
-  const visibleMetrics = new Set(options.visible_metrics || dashboardMetricKeys);
-  const changeHours = options.change_hours || 1;
+  const visibleMetrics = new Set(options.visible_metrics || [...dashboardMetricKeys, "temperature_range", "temperature_trend"]);
+  const historyHours = options.history_hours || 24;
   const grid = document.getElementById("card-grid");
   if (!grid) return;
 
   if (dashboardNodes.size === 0) {
-    for (const node of grid.querySelectorAll("a[data-mac]")) {
+    for (const node of grid.querySelectorAll("[data-mac]")) {
       dashboardNodes.set(node.dataset.mac, rememberCard(node));
     }
   }
@@ -112,28 +118,30 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
     }
   }
   if (cards.length === 0) {
-    if (!grid.querySelector("p")) {
+    if (!grid.querySelector(":scope > p")) {
       const empty = document.createElement("p");
       empty.textContent = "No tags seen yet. Once the scanner picks up a RuuviTag, it will show up here.";
       grid.appendChild(empty);
     }
     return;
   }
-  const empty = grid.querySelector("p");
+  const empty = grid.querySelector(":scope > p");
   if (empty) empty.remove();
 
   let position = grid.firstElementChild;
   for (const card of cards) {
     let entry = dashboardNodes.get(card.mac);
     if (!entry) {
-      const node = document.createElement("a");
+      const node = document.createElement("article");
       node.dataset.mac = card.mac;
-      node.href = `/sensor/${encodeURIComponent(card.mac)}`;
-      node.innerHTML = '<div class="card-name"></div><div class="card-meta"></div>' +
-        '<dl class="card-metrics"><dt>Temp</dt><dd></dd>' +
-        '<dt class="hour-change-label" title="Compared with the closest reading to one hour ago (±10 minutes)">Change / 1h</dt><dd class="hour-change"></dd>' +
-        '<dt>Day low / high</dt><dd></dd><dt>Night low / high</dt><dd></dd>' +
-        '<dt>Humidity</dt><dd></dd><dt>Pressure</dt><dd></dd><dt>Battery</dt><dd></dd></dl>';
+      node.innerHTML = '<a class="card-main"><div class="card-name"></div><div class="card-meta"></div>' +
+        '<dl class="card-metrics"><dt>Now</dt><dd></dd><dt>Humidity</dt><dd></dd>' +
+        '<dt>Pressure</dt><dd></dd><dt>Battery</dt><dd></dd></dl>' +
+        '<div class="card-extremes"><span class="card-window"></span><strong class="card-range"></strong></div>' +
+        '<div class="card-trend"><svg viewBox="0 0 240 64" role="img"><path /></svg>' +
+        '<p class="trend-empty">Temperature trend unavailable in this window</p>' +
+        '<div class="trend-axis"><span>Now</span><span class="trend-since"></span></div></div>' +
+        '<span class="card-history-link">View history →</span></a>';
       entry = rememberCard(node);
       dashboardNodes.set(card.mac, entry);
     }
@@ -143,9 +151,6 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
     setText(entry.meta, `Last seen: ${card.timestamp ? formatTimestamp(card.timestamp) : "never"}`);
     const values = [
       formatMetric(card.temperature, "°C", 1),
-      formatTemperatureChange(card.temperature_change),
-      formatTemperatureRange(card.day_temperature_low, card.day_temperature_high),
-      formatTemperatureRange(card.night_temperature_low, card.night_temperature_high),
       formatMetric(card.humidity, "%", 1),
       formatMetric(card.pressure, "hPa", 1),
       formatMetric(card.battery, "mV", 0),
@@ -153,11 +158,22 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
     values.forEach((value, index) => {
       setText(entry.metrics[index], value);
       const hidden = !visibleMetrics.has(dashboardMetricKeys[index]);
-      entry.metrics[index].hidden = hidden;
-      entry.labels[index].hidden = hidden;
+      setHidden(entry.metrics[index], hidden);
+      setHidden(entry.labels[index], hidden);
     });
-    setText(entry.labels[1], `Change / ${changeHours}h`);
-    entry.labels[1].title = `Compared with the closest reading to ${changeHours} hours ago (±10 minutes)`;
+    const href = `/sensor/${encodeURIComponent(card.mac)}?range=${historyHours}h`;
+    if (entry.link.getAttribute("href") !== href) entry.link.setAttribute("href", href);
+    setText(entry.window, `Last ${historyHours}h · Low / high`);
+    setText(entry.range, formatTemperatureRange(card.temperature_low, card.temperature_high));
+    setHidden(entry.extremes, !visibleMetrics.has("temperature_range"));
+    setHidden(entry.trend, !visibleMetrics.has("temperature_trend"));
+    const path = card.trend_path || "";
+    if (entry.path.getAttribute("d") !== path) entry.path.setAttribute("d", path);
+    const label = `Temperature over the last ${historyHours} hours; now on the left`;
+    if (entry.svg.getAttribute("aria-label") !== label) entry.svg.setAttribute("aria-label", label);
+    setHidden(entry.svg, !path);
+    setHidden(entry.empty, !!path);
+    setText(entry.since, `${historyHours}h ago`);
     if (entry.stale.hidden !== !card.stale) entry.stale.hidden = !card.stale;
     if (entry.node !== position) grid.insertBefore(entry.node, position);
     position = entry.node.nextElementSibling;
@@ -167,7 +183,7 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
 let dashboardRefreshSeconds = DASHBOARD_REFRESH_SECONDS || 300;
 let stopDashboardPolling;
 async function refreshDashboard() {
-  const data = await fetchJSON("/api/current");
+  const data = await fetchJSON(`/api/current?hours=${window.DASHBOARD_OPTIONS?.history_hours || 24}`);
   renderCards(data.cards, data.dashboard_options);
   renderStorageStats(data.storage);
   const refreshSeconds = data.dashboard_options?.refresh_seconds;
