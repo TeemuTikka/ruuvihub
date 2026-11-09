@@ -37,6 +37,7 @@ function rememberCard(node) {
     trend: node.querySelector(".card-trend"),
     svg: node.querySelector("svg"),
     path: node.querySelector("svg path"),
+    trendValues: Array.from(node.querySelectorAll(".trend-values text")),
     empty: node.querySelector(".trend-empty"),
     since: node.querySelector(".trend-since"),
   };
@@ -138,7 +139,7 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
         '<dl class="card-metrics"><dt>Now</dt><dd></dd><dt>Humidity</dt><dd></dd>' +
         '<dt>Pressure</dt><dd></dd><dt>Battery</dt><dd></dd></dl>' +
         '<div class="card-extremes"><span class="card-window"></span><strong class="card-range"></strong></div>' +
-        '<div class="card-trend"><svg viewBox="0 0 240 64" role="img"><path /></svg>' +
+        '<div class="card-trend"><svg viewBox="-64 -8 304 80" role="img"><g class="trend-grid" aria-hidden="true"><line x1="2" x2="238" y1="2" y2="2" /><line x1="2" x2="238" y1="32" y2="32" /><line x1="2" x2="238" y1="62" y2="62" /></g><g class="trend-values"><text x="-6" y="2"></text><text x="-6" y="32"></text><text x="-6" y="62"></text></g><path /></svg>' +
         '<p class="trend-empty">Temperature trend unavailable in this window</p>' +
         '<div class="trend-axis"><span>Now</span><span class="trend-since"></span></div></div>' +
         '<span class="card-history-link">View history →</span></a>';
@@ -167,6 +168,11 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
     setText(entry.range, formatTemperatureRange(card.temperature_low, card.temperature_high));
     setHidden(entry.extremes, !visibleMetrics.has("temperature_range"));
     setHidden(entry.trend, !visibleMetrics.has("temperature_trend"));
+    const low = card.temperature_low, high = card.temperature_high;
+    const midpoint = low == null || high == null ? null : (low + high) / 2;
+    [high, midpoint, low].forEach((value, index) => {
+      setText(entry.trendValues[index], formatMetric(value, "°C", 1));
+    });
     const path = card.trend_path || "";
     if (entry.path.getAttribute("d") !== path) entry.path.setAttribute("d", path);
     const label = `Temperature over the last ${historyHours} hours; now on the left`;

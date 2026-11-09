@@ -93,8 +93,9 @@ trend chart for the last **6 / 12 / 24 / 48 / 72 hours** (default **24 hours**).
 Select the window above the cards; it stays selected during automatic refresh.
 Low/high uses all stored readings in the window, including downloaded history.
 The trend runs from now on the left into the past, leaves missing periods blank,
-and marks stale sensors. **View history** opens the matching hourly window;
-longer day ranges and CSV export are available there.
+and shows temperature scale values with horizontal guide lines. Cards mark stale
+sensors. **View history** opens the matching hourly window; longer day ranges
+and CSV export are available there.
 
 In **Settings → Dashboard settings**, choose which measurements and sensors to
 show, the refresh interval, and footer storage information. Preferences are

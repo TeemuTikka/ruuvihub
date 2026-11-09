@@ -23,7 +23,18 @@
         <strong class="card-range">{% if card.temperature_low is not none %}{{ '%.1f'|format(card.temperature_low) }} / {{ '%.1f'|format(card.temperature_high) }} °C{% else %}—{% endif %}</strong>
       </div>
       <div class="card-trend" {% if 'temperature_trend' not in visible_metrics %}hidden{% endif %}>
-        <svg viewBox="0 0 240 64" role="img" aria-label="Temperature over the last {{ history_hours }} hours; now on the left" {% if not card.trend_path %}hidden{% endif %}><path d="{{ card.trend_path }}" /></svg>
+        <svg viewBox="-64 -8 304 80" role="img" aria-label="Temperature over the last {{ history_hours }} hours; now on the left" {% if not card.trend_path %}hidden{% endif %}>
+          <g class="trend-grid" aria-hidden="true">
+            {% for y in [2, 32, 62] %}<line x1="2" x2="238" y1="{{ y }}" y2="{{ y }}" />{% endfor %}
+          </g>
+          <g class="trend-values">
+            {% set midpoint = (card.temperature_high + card.temperature_low) / 2 if card.temperature_low is not none else none %}
+            {% for value, y in [(card.temperature_high, 2), (midpoint, 32), (card.temperature_low, 62)] %}
+            <text x="-6" y="{{ y }}">{{ '%.1f'|format(value) ~ ' °C' if value is not none else '—' }}</text>
+            {% endfor %}
+          </g>
+          <path d="{{ card.trend_path }}" />
+        </svg>
         <p class="trend-empty" {% if card.trend_path %}hidden{% endif %}>Temperature trend unavailable in this window</p>
         <div class="trend-axis"><span>Now</span><span class="trend-since">{{ history_hours }}h ago</span></div>
       </div>

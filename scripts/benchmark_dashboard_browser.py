@@ -12,6 +12,7 @@ import json
 import math
 from pathlib import Path
 import platform
+import re
 import statistics
 
 from playwright.sync_api import sync_playwright
@@ -42,7 +43,7 @@ def verify(page):
         '<dl class="card-metrics"><dt>Now</dt><dd></dd><dt>Humidity</dt><dd></dd>' +
         '<dt>Pressure</dt><dd></dd><dt>Battery</dt><dd></dd></dl>' +
         '<div class="card-extremes"><span class="card-window"></span><strong class="card-range"></strong></div>' +
-        '<div class="card-trend"><svg viewBox="0 0 240 64" role="img"><path /></svg>' +
+        '<div class="card-trend"><svg viewBox="-64 -8 304 80" role="img"><g class="trend-grid" aria-hidden="true"><line x1="2" x2="238" y1="2" y2="2" /><line x1="2" x2="238" y1="32" y2="32" /><line x1="2" x2="238" y1="62" y2="62" /></g><g class="trend-values"><text x="-6" y="2"></text><text x="-6" y="32"></text><text x="-6" y="62"></text></g><path /></svg>' +
         '<p class="trend-empty">Temperature trend unavailable in this window</p>' +
         '<div class="trend-axis"><span>Now</span><span class="trend-since"></span></div></div>' +
         '<span class="card-history-link">View history →</span></a></article>';
@@ -53,6 +54,7 @@ def verify(page):
       check(initial.querySelector('.card-name').textContent === a.name, 'Name mismatch');
       check(initial.querySelectorAll('dd')[1].textContent === '—', 'Null metric mismatch');
       check(getComputedStyle(initial.querySelector('.stale-flag')).display === 'none', 'Fresh card shows stale flag');
+      check(initial.querySelector('.trend-values').textContent === '22.0 °C19.5 °C17.0 °C', 'Temperature scale missing');
       const focused = initial.querySelector("a");
       focused.focus();
       const observer = new MutationObserver(() => {});
@@ -79,6 +81,7 @@ def verify(page):
       renderCards([{...b, trend_path: '', temperature_low: null, temperature_high: null}]);
       check(grid.querySelector('svg').hasAttribute('hidden'), 'Empty trend not hidden');
       check(!grid.querySelector('.trend-empty').hidden, 'Empty trend message missing');
+      check(grid.querySelector('.trend-values').textContent === '———', 'Empty scale retained values');
       renderCards([b], {history_hours: 6});
       check(!grid.querySelector('svg').hasAttribute('hidden'), 'Restored trend remains hidden');
       check(grid.querySelector('a').getAttribute('href').endsWith('?range=6h'), 'Selected window link mismatch');
@@ -96,6 +99,17 @@ def benchmark(args):
                 page = browser.new_page()
                 load(page, args.dashboard_js)
                 verify(page)
+                # Exercise the actual tick formatter across hourly/day boundaries.
+                sensor_js = (ROOT / "src/web/static/sensor.js").read_text()
+                formatter = re.search(r"  function relativeLabel\(.*?\n  }", sensor_js, re.S).group()
+                labels = page.evaluate("""formatter => {
+                  const label = new Function(formatter + '; return relativeLabel;')();
+                  const until = '2026-10-04T00:00:00Z';
+                  return [0, 0.5, 1, 6, 12, 23, 24, 72].map(hours =>
+                    label(Date.parse(until) - hours * 3600000, until));
+                }""", formatter)
+                assert labels == ['Now', '0.5h ago', '1h ago', '6h ago', '12h ago',
+                                  '23h ago', '1d ago', '3d ago'], labels
                 page.close()
             for count in args.tags:
                 for workload in ["unchanged", "one_changed", "all_changed"]:

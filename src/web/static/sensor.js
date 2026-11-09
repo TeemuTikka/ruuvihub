@@ -127,9 +127,10 @@
   }
 
   function relativeLabel(value, until) {
-    const days = (Date.parse(until) - value) / 86400000;
-    if (days < 0.01) return "Now";
-    return `${Number(days.toFixed(1))}d ago`;
+    const hours = (Date.parse(until) - value) / 3600000;
+    if (hours <= 0) return "Now";
+    if (hours < 24) return `${Number(hours.toFixed(1))}h ago`;
+    return `${Number((hours / 24).toFixed(1))}d ago`;
   }
 
   async function loadHistory() {

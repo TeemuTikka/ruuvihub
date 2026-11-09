@@ -636,8 +636,11 @@ canvas {
 .card-window, .trend-axis { font-size: .75rem; color: var(--text-dim); }
 .card-range { font-weight: 600; }
 .card-trend { margin-top: 1rem; }
-.card-trend svg { display: block; width: 100%; height: 70px; overflow: visible; }
+.card-trend svg { display: block; width: 100%; height: 90px; overflow: visible; }
 .card-trend path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.trend-axis { display: flex; justify-content: space-between; margin-top: .35rem; }
+.trend-axis { display: flex; justify-content: space-between; padding-left: 21%; margin-top: .35rem; }
 .trend-empty { color: var(--text-dim); font-size: .8rem; min-height: 48px; }
 .card-history-link { display: block; color: var(--accent); font-size: .85rem; margin-top: 1rem; }
+
+.trend-grid line { stroke: var(--panel-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.trend-values text { fill: var(--text-dim); font-size: 10px; text-anchor: end; dominant-baseline: middle; }

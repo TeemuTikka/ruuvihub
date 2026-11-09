@@ -91,6 +91,11 @@ def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, m
     assert f"Last {hours}h · Low / high" in page
     assert "Day low / high" not in page and "Night low / high" not in page
     assert "Change /" not in page
+    assert 'class="trend-grid"' in page
+    assert 'class="trend-values"' in page
+    assert '<text x="-6" y="2">20.0 °C</text>' in page
+    assert '<text x="-6" y="32">7.5 °C</text>' in page
+    assert '<text x="-6" y="62">-5.0 °C</text>' in page
 
 
 @pytest.mark.parametrize("hours", [None, "invalid", "1", "26", "-6"])

@@ -461,6 +461,8 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   subtract elapsed hours in UTC, so midnight and daylight-saving changes do
   not create empty or shortened periods. Trends use actual sample timestamps
   and break at missing values and segment changes, with now on the left.
+  Temperature scale labels and guide lines show the high, midpoint, and low
+  used to draw each trend; polling updates the labels with the graph.
   A single View history link opens that hourly range on the sensor page.
   Sensor cards appear first; optional storage metadata appears as small,
   inline text in the footer, with no separate heading or panel.
