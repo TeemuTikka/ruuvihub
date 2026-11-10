@@ -4,8 +4,7 @@ RuuviTag firmware 3.x (>= 3.30.0) maintains a rolling on-device flash log
 of temperature/humidity/pressure, retrievable over a GATT (Bluetooth
 connection) channel independent of the passive BLE advertisements that
 ``scanner.py`` normally reads. This module wraps
-``RuuviTagSensor.download_history()`` (from the already-used
-``ruuvitag-sensor`` dependency) to pull that log and reconstruct it into
+``tag_history.download_history()`` to pull that log and reconstruct it into
 records shaped like normal live-scan rows, so gaps caused by a Pi/BLE
 outage can be partially filled in.
 
@@ -21,16 +20,17 @@ measurement type as a separate log entry, and per the ``ruuvitag-sensor``
 library's own docstring, callers must merge them by timestamp themselves.
 Timestamps for the temperature/humidity/pressure of "the same" sample are
 not guaranteed to be bit-identical, so entries are bucketed into a small
-tolerance window (rounded to the nearest ``_BUCKET_SECONDS``) before being
+tolerance window anchored at the first entry before being
 merged into one record.
 """
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ruuvitag_sensor.ruuvi import RuuviTagSensor
+from tag_history import download_history
 
 logger = logging.getLogger(__name__)
 
@@ -149,14 +149,19 @@ async def backfill_tag(
             logger.warning("Could not parse stored timestamp %r for %s", since, mac)
 
     try:
+        # Advertisement payloads contain compact IDs; Bleak expects a MAC
+        # address with separators. Keep the stored ID on returned records.
+        connection_address = mac
+        if re.fullmatch(r"[0-9a-fA-F]{12}", mac):
+            connection_address = ":".join(mac[i:i + 2] for i in range(0, 12, 2)).upper()
         raw_entries = await asyncio.wait_for(
-            RuuviTagSensor.download_history(mac, start_time=start_time),
+            download_history(connection_address, start_time=start_time),
             timeout=timeout_seconds,
         )
     except Exception as exc:
         logger.warning(
-            "History backfill failed for %s (unreachable, or firmware < 3.30.0)",
-            mac,
+            "History backfill failed for %s: %s; cursor unchanged",
+            mac, exc,
             exc_info=True,
         )
         raise BackfillError(f"History pull failed for {mac}") from exc
@@ -213,7 +218,7 @@ async def initialize_pre_scan_backfill_cursors(settings, storage) -> None:
             await storage.set_backfill_cursor(mac, latest)
 
 
-async def run_backfill_for_known_tags(settings, storage, settings_store) -> None:
+async def run_backfill_for_known_tags(settings, storage, settings_store) -> dict:
     """Run a full backfill pass over every eligible known tag, sequentially.
 
     Eligible tags are the configured whitelist (``settings.tag_addresses``)
@@ -244,6 +249,9 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> None
         candidate_macs = await storage.known_macs()
     macs = [mac for mac in candidate_macs if mac not in disabled]
 
+    result = {"succeeded": 0, "failed": 0, "skipped": len(candidate_macs) - len(macs), "recovered": 0}
+    logger.info("History backfill starting: %d eligible tag(s), %d disabled", len(macs), result["skipped"])
+
     # Seed from persisted counts so partial failure runs from previous processes
     # carry forward; don't overwrite in-session increments already in memory.
     for mac, count in settings.history_backfill_failure_counts.items():
@@ -260,6 +268,7 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> None
                 mac, since, timeout_seconds=settings.history_backfill_timeout_seconds
             )
         except BackfillError:
+            result["failed"] += 1
             _consecutive_failures[mac] = _consecutive_failures.get(mac, 0) + 1
             await settings_store.set_backfill_failure_count(mac, _consecutive_failures[mac])
             if _consecutive_failures[mac] >= settings.history_backfill_failure_threshold:
@@ -291,4 +300,11 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> None
         # it). Only advanced on success, never on failure, so a failed
         # pull's gap is retried next time instead of silently skipped.
         await storage.set_backfill_cursor(mac, pull_started_at)
+        result["succeeded"] += 1
+        result["recovered"] += len(records)
 
+    logger.info(
+        "History backfill finished: %d succeeded, %d failed, %d disabled, %d recovered record(s)",
+        result["succeeded"], result["failed"], result["skipped"], result["recovered"],
+    )
+    return result

@@ -78,15 +78,16 @@ def test_dashboard_preferences_persist_without_changing_system_settings(tmp_path
     assert f'data-mac="{MAC_1}"' in page and f'data-mac="{MAC_2}"' not in page
     assert 'data-metric="pressure" hidden' in page
     assert 'data-metric="temperature" hidden' not in page
-    assert "Change / 3h" in page
+    assert "Change /" not in page
+    assert "Last 24h" in page
     api = client.get("/api/current").json()
     assert [card["mac"] for card in api["cards"]] == [MAC_1]
-    assert api["dashboard_options"]["change_hours"] == 3
+    assert api["dashboard_options"]["history_hours"] == 24
     # Hiding a sensor on the dashboard keeps its history available.
     assert client.get(f"/api/history/{MAC_2}?range=all").json()
     admin_page = client.get("/config/dashboard").text
     assert "Dashboard settings saved" in client.get("/config/dashboard?saved=1").text
-    assert 'name="dashboard_change_hours"' in admin_page
+    assert 'name="dashboard_change_hours"' not in admin_page
     assert 'name="dashboard_change_hours"' not in client.get("/config").text
 
 
@@ -126,8 +127,8 @@ def test_empty_selections_hide_all_then_can_be_restored(tmp_path):
     assert len(client.get("/api/current").json()["cards"]) == 3
 
 
-@pytest.mark.parametrize("hours", [1, 3, 24, 168])
-def test_comparison_uses_selected_period(tmp_path, monkeypatch, hours):
+@pytest.mark.parametrize("hours", [6, 12, 24, 48, 72])
+def test_history_uses_selected_period(tmp_path, monkeypatch, hours):
     import web.dashboard as dashboard
     client, store, storage = setup(tmp_path)
     now = datetime(2026, 10, 6, 12, tzinfo=timezone.utc)
@@ -141,7 +142,9 @@ def test_comparison_uses_selected_period(tmp_path, monkeypatch, hours):
     for timestamp, temperature in [(now - timedelta(hours=hours, minutes=3), 10), (now - timedelta(seconds=10), 12)]:
         asyncio.run(storage.add(MAC_1, make_record(timestamp=timestamp.isoformat(), temperature=temperature)))
     monkeypatch.setattr(dashboard, "datetime", FrozenDatetime)
-    assert client.get("/api/current").json()["cards"][0]["temperature_change"] == 2
+    card = client.get(f"/api/current?hours={hours}").json()["cards"][0]
+    assert card["temperature_low"] == 12
+    assert card["temperature_high"] == 12
 
 
 def test_preferences_validate_legacy_files_and_normalize_hidden_mac(tmp_path):
@@ -155,3 +158,13 @@ def test_preferences_validate_legacy_files_and_normalize_hidden_mac(tmp_path):
     asyncio.run(storage.add(MAC_1, make_record()))
     asyncio.run(store.update(dashboard_hidden_tags=[MAC_1.replace(":", "").lower()]))
     assert client.get("/api/current").json()["cards"] == []
+
+
+def test_legacy_card_preferences_migrate_to_rolling_widgets():
+    settings = Settings.from_dict({"dashboard_visible_metrics": [
+        "temperature", "temperature_change", "day_temperature_range", "night_temperature_range", "humidity",
+    ]})
+    assert settings.dashboard_visible_metrics == [
+        "temperature", "temperature_trend", "temperature_range", "humidity",
+    ]
+    assert Settings.from_dict({"dashboard_visible_metrics": []}).dashboard_visible_metrics == []

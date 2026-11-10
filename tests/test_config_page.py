@@ -688,3 +688,24 @@ def test_test_connection_uses_saved_azure_url_when_input_blank(tmp_path):
                             data={"cloud_upload_destination":"azure_blob", "azure_blob_container_url":""})
     assert result.json()["success"]
     assert "fake%2Bsignature%3D" in put.call_args.args[0]
+
+
+@pytest.mark.parametrize('result,error,expected', [
+    ({"succeeded": 0, "failed": 2, "skipped": 2, "recovered": 0}, False, "No tags synced."),
+    ({"succeeded": 1, "failed": 1, "skipped": 0, "recovered": 12}, False, "12 records recovered."),
+    ({"succeeded": 0, "failed": 0, "skipped": 4, "recovered": 0}, False, "No tags synced."),
+    (None, True, "History sync failed unexpectedly."),
+])
+def test_manual_sync_displays_actual_outcome(tmp_path, result, error, expected):
+    from web.config import _run_manual_sync
+
+    app, settings_store, storage = build_app(tmp_path)
+    mocked = AsyncMock(side_effect=RuntimeError('test failure')) if error else AsyncMock(return_value=result)
+    with patch('web.config.run_backfill_for_known_tags', new=mocked):
+        asyncio.run(_run_manual_sync(settings_store, storage, app.state.ble_lock, app.state))
+    with TestClient(app) as client:
+        login(client)
+        page = client.get('/config')
+    assert expected in ' '.join(page.text.split())
+    assert app.state.backfill_sync_status['running'] is False
+    assert app.state.backfill_sync_status['error'] is error

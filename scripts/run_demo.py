@@ -38,7 +38,7 @@ async def build_demo_app(directory: Path, now: datetime | None = None):
     }
     db_path = str(directory / "demo.db")
     await store.update(
-        db_path=db_path, scan_enabled=False, cloud_upload_enabled=False,
+        db_path=db_path, scan_enabled=False, scan_interval_seconds=300, cloud_upload_enabled=False,
         history_backfill_enabled=False, history_backfill_on_startup=False,
         https_enabled=False, dashboard_refresh_seconds=5, tag_names=tags,
     )

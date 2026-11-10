@@ -60,6 +60,22 @@ class TestMergeHistoryEntries:
 
 class TestBackfillTag:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("address, expected", [
+        ("aabbccddee01", "AA:BB:CC:DD:EE:01"),
+        (MAC_1, MAC_1),
+        ("12345678-1234-1234-1234-123456789abc", "12345678-1234-1234-1234-123456789abc"),
+    ])
+    async def test_connection_address_preserves_stored_sensor_id(self, address, expected):
+        from history_backfill import backfill_tag
+
+        download = AsyncMock(return_value=[{"timestamp": _ts(), "temperature": 22.5}])
+        with patch("history_backfill.download_history", new=download):
+            records = await backfill_tag(address, since=None)
+
+        download.assert_awaited_once_with(expected, start_time=None)
+        assert records[0]["mac"] == address
+
+    @pytest.mark.asyncio
     async def test_returns_merged_records_for_fresh_tag(self):
         from history_backfill import backfill_tag
 
@@ -68,7 +84,7 @@ class TestBackfillTag:
             {"temperature": None, "humidity": 45.0, "pressure": None, "timestamp": _ts(1)},
         ]
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(return_value=raw),
         ):
             records = await backfill_tag(MAC_1, since=None)
@@ -88,7 +104,7 @@ class TestBackfillTag:
             {"temperature": 23.0, "humidity": None, "pressure": None, "timestamp": _ts(600)},
         ]
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(return_value=raw),
         ):
             records = await backfill_tag(MAC_1, since=since)
@@ -101,7 +117,7 @@ class TestBackfillTag:
         from history_backfill import backfill_tag
 
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(return_value=[]),
         ):
             records = await backfill_tag(MAC_1, since=None)
@@ -113,7 +129,7 @@ class TestBackfillTag:
         from history_backfill import backfill_tag, BackfillError
 
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(side_effect=Exception("BLE error")),
         ):
             with pytest.raises(BackfillError):
@@ -138,7 +154,7 @@ class TestBackfillTag:
             return raw
 
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=slow_download_history,
         ):
             # A too-short timeout must raise, proving the parameter is honored...
@@ -161,7 +177,7 @@ class TestBackfillTag:
             await asyncio.sleep(10)
 
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=hangs_forever,
         ):
             with pytest.raises(BackfillError):
@@ -235,7 +251,7 @@ class TestRunBackfillForKnownTags:
 
         raw = [{"temperature": 22.5, "humidity": None, "pressure": None, "timestamp": _ts(0)}]
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(return_value=raw),
         ):
             await run_backfill_for_known_tags(settings, storage, settings_store)
@@ -253,7 +269,7 @@ class TestRunBackfillForKnownTags:
         settings = _FakeSettings(disabled_tags={MAC_1: "too many failures"})
 
         mock_fn = AsyncMock(return_value=[])
-        with patch("history_backfill.RuuviTagSensor.download_history", new=mock_fn):
+        with patch("history_backfill.download_history", new=mock_fn):
             await run_backfill_for_known_tags(settings, storage, settings_store)
 
         mock_fn.assert_not_called()
@@ -268,7 +284,7 @@ class TestRunBackfillForKnownTags:
         settings = _FakeSettings(failure_threshold=3)
 
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(side_effect=Exception("BLE error")),
         ):
             for _ in range(3):
@@ -287,14 +303,14 @@ class TestRunBackfillForKnownTags:
         settings = _FakeSettings(failure_threshold=2)
 
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(side_effect=Exception("BLE error")),
         ):
             await run_backfill_for_known_tags(settings, storage, settings_store)
         assert _consecutive_failures[MAC_1] == 1
 
         with patch(
-            "history_backfill.RuuviTagSensor.download_history",
+            "history_backfill.download_history",
             new=AsyncMock(return_value=[]),
         ):
             await run_backfill_for_known_tags(settings, storage, settings_store)
@@ -311,7 +327,7 @@ class TestRunBackfillForKnownTags:
         settings = _FakeSettings(tag_addresses=[MAC_1])
 
         mock_fn = AsyncMock(return_value=[])
-        with patch("history_backfill.RuuviTagSensor.download_history", new=mock_fn):
+        with patch("history_backfill.download_history", new=mock_fn):
             await run_backfill_for_known_tags(settings, storage, settings_store)
 
         mock_fn.assert_called_once()
@@ -346,3 +362,20 @@ async def test_failed_persistence_does_not_advance_backfill_cursor(tmp_path):
         await run_backfill_for_known_tags(settings, storage, store)
     assert await storage.get_history(MAC_1) == [record]
     assert await storage.get_backfill_cursor(MAC_1) > since
+
+
+@pytest.mark.asyncio
+async def test_pass_reports_success_failure_disabled_and_recovered():
+    from history_backfill import run_backfill_for_known_tags, BackfillError, _consecutive_failures
+
+    _consecutive_failures.clear()
+    settings = _FakeSettings(disabled_tags={"disabled": "unreachable"})
+    storage = _FakeStorage(known_macs=[MAC_1, MAC_2, "disabled"])
+    record = {"mac": MAC_1, "timestamp": "2026-09-25T00:00:00+00:00"}
+    with patch("history_backfill.backfill_tag", new=AsyncMock(side_effect=[[record], BackfillError()])):
+        result = await run_backfill_for_known_tags(settings, storage, _FakeSettingsStore())
+    assert result == {"succeeded": 1, "failed": 1, "skipped": 1, "recovered": 1}
+    assert storage.added == [(MAC_1, record)]
+    assert MAC_1 in storage._backfill_cursors
+    assert MAC_2 not in storage._backfill_cursors
+    _consecutive_failures.clear()
