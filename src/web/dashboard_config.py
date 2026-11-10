@@ -41,7 +41,7 @@ async def save_dashboard_config(request: Request, _username: str = Depends(requi
     visible_metrics = form.getlist("visible_metrics")
     try:
         refresh = int(form.get("dashboard_refresh_seconds", ""))
-        hours = int(form.get("dashboard_change_hours", ""))
+        hours = int(form.get("dashboard_change_hours", settings.dashboard_change_hours))
         if refresh < 1 or not 1 <= hours <= MAX_DASHBOARD_CHANGE_HOURS:
             raise ValueError()
         if any(metric not in DEFAULT_DASHBOARD_METRICS for metric in visible_metrics):

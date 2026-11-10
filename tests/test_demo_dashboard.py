@@ -57,9 +57,10 @@ def test_demo_serves_seeded_dashboard_without_touching_regular_files(tmp_path, m
         assert sum(card["stale"] for card in cards) == 1
         for card in cards:
             if card["name"] == "Demo Garage":
-                assert card["temperature_change"] is None
+                assert card["stale"] is True
             else:
-                assert card["temperature_change"] is not None
+                assert card["temperature_low"] is not None
+                assert card["trend_path"].count("M") == 1
             history = client.get(f'/api/history/{card["mac"]}?range=all').json()
             assert len(history) == 289
             duration = datetime.fromisoformat(history[-1]["timestamp"]) - datetime.fromisoformat(history[0]["timestamp"])

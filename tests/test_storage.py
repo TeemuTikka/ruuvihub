@@ -696,3 +696,47 @@ async def test_chart_backfill_uses_five_minute_cadence_and_missing_battery(tmp_p
     records = await storage.get_chart_history(MAC_1, None, "2026-09-21T00:00:00+00:00", 130)
     assert [r["_chart_segments"]["temperature"] for r in records] == [0, 0, 0, 1]
     assert all("battery" not in r for r in records)
+
+
+@pytest.mark.asyncio
+async def test_weather_summaries_use_full_window_not_cache_or_trend_samples(tmp_path):
+    import json
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    db = str(tmp_path / "weather.db")
+    storage = Storage(max_entries_per_tag=1, db_path=db)
+    start = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    records = []
+    for index in range(1001):
+        record = {"mac": MAC_1, "timestamp": (start + timedelta(seconds=index)).isoformat(),
+                  "temperature": -40 if index == 17 else 50 if index == 983 else 10,
+                  "data_format": 5}
+        records.append((MAC_1, record["timestamp"], json.dumps(record)))
+    with sqlite3.connect(db) as conn:
+        conn.executemany("INSERT INTO readings(mac,timestamp,data) VALUES (?,?,?)", records)
+    summary = (await storage.get_weather_summaries(
+        [MAC_1], start.isoformat(), (start + timedelta(seconds=1000)).isoformat(), 120,
+    ))[MAC_1]
+    assert summary["temperature_low"] == -40
+    assert summary["temperature_high"] == 50
+    assert summary["reading_count"] == 1001
+    assert len(summary["trend"]) <= 60
+    assert await storage.get_weather_summaries([], "", "", 120) == {}
+
+
+@pytest.mark.asyncio
+async def test_weather_summaries_empty_window_and_non_numeric_values(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    storage = Storage(db_path=str(tmp_path / "weather.db"))
+    now = datetime.now(timezone.utc)
+    for i, value in enumerate([None, False, "bad", 0, -3]):
+        await storage.add(MAC_1, {"mac": MAC_1, "timestamp": (now - timedelta(minutes=i)).isoformat(), "temperature": value})
+    summaries = await storage.get_weather_summaries(
+        [MAC_1, MAC_2], (now - timedelta(hours=6)).isoformat(), now.isoformat(), 120,
+    )
+    assert summaries[MAC_1]["temperature_low"] == -3
+    assert summaries[MAC_1]["temperature_high"] == 0
+    assert summaries[MAC_1]["reading_count"] == 2
+    assert summaries[MAC_2] == {"temperature_low": None, "temperature_high": None,
+                                "reading_count": 0, "trend": []}

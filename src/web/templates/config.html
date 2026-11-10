@@ -163,6 +163,13 @@
         <p class="hint">
           {% if backfill_sync_status.running %}
           Sync in progress…
+          {% elif backfill_sync_status.error %}
+          History sync failed unexpectedly. Check the logs for details.
+          {% elif backfill_sync_status.result %}
+          {% set result = backfill_sync_status.result %}
+          {% if result.succeeded == 0 %}No tags synced.{% endif %}
+          {{ result.succeeded }} succeeded, {{ result.failed }} failed, {{ result.skipped }} disabled;
+          {{ result.recovered }} records recovered.
           {% elif backfill_sync_status.last_synced_at %}
           Last manual sync finished: {{ backfill_sync_status.last_synced_at | format_timestamp }}
           {% else %}

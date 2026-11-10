@@ -25,16 +25,20 @@
       canvasId: "chart-pressure",
       color: "#81c784",
     },
-    {
-      field: "battery",
-      label: "Battery (mV)",
-      canvasId: "chart-battery",
-      color: "#ba68c8",
-    },
   ];
 
-  function formatLabel(iso) {
-    return formatTimestamp(iso);
+  const instances = new Map();
+  let loading = false;
+
+  function showLatest(records) {
+    const latest = records[records.length - 1];
+    for (const [field, unit] of [["temperature", "°C"], ["humidity", "%"], ["pressure", "hPa"]]) {
+      const value = latest?.[field];
+      document.getElementById(`weather-${field}`).textContent =
+        typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(1)} ${unit}` : `— ${unit}`;
+    }
+    document.getElementById("weather-seen").textContent = latest
+      ? `${formatTimestamp(latest.timestamp)} · ${timeAgo(latest.timestamp)}` : "No readings in this window";
   }
 
   function renderChart(config, history) {
@@ -56,7 +60,16 @@
     const canvas = document.getElementById(config.canvasId);
     if (!canvas) return;
 
-    new Chart(canvas.getContext("2d"), {
+    const existing = instances.get(config.field);
+    if (existing) {
+      existing.data.datasets[0].data = points;
+      existing.options.scales.x.min = Date.parse(history.since);
+      existing.options.scales.x.max = Date.parse(history.until);
+      existing.options.scales.x.ticks.callback = value => relativeLabel(value, history.until);
+      existing.update("none");
+      return;
+    }
+    instances.set(config.field, new Chart(canvas.getContext("2d"), {
       type: "line",
       data: {
         datasets: [
@@ -77,18 +90,22 @@
         // Duplicate timestamps are allowed, so do not enable normalized.
         parsing: false,
         responsive: true,
-        maintainAspectRatio: true,
+        maintainAspectRatio: false,
         scales: {
+          y: { ticks: { color: "#9aa8b6" }, grid: { color: "#2a3746" } },
           x: {
+            grid: { color: "#2a3746" },
             type: "linear",
+            reverse: true,
             min: Date.parse(history.since),
             max: Date.parse(history.until),
             ticks: {
+              color: "#9aa8b6",
               autoSkip: true,
               maxTicksLimit: 8,
               maxRotation: 0,
               callback(value) {
-                return formatLabel(value);
+                return relativeLabel(value, history.until);
               },
             },
           },
@@ -106,15 +123,25 @@
           },
         },
       },
-    });
+    }));
+  }
+
+  function relativeLabel(value, until) {
+    const hours = (Date.parse(until) - value) / 3600000;
+    if (hours <= 0) return "Now";
+    if (hours < 24) return `${Number(hours.toFixed(1))}h ago`;
+    return `${Number((hours / 24).toFixed(1))}d ago`;
   }
 
   async function loadHistory() {
+    if (loading) return;
+    loading = true;
     try {
       const history = await fetchJSON(
         `/api/history/${encodeURIComponent(mac)}?range=${encodeURIComponent(range)}&chart=true`
       );
       const records = history.records;
+      showLatest(records);
       if (statusEl) {
         statusEl.textContent = records.length
           ? `${records.length} record${records.length === 1 ? "" : "s"}`
@@ -126,8 +153,10 @@
       if (statusEl) {
         statusEl.textContent = "Failed to load history.";
       }
+    } finally {
+      loading = false;
     }
   }
 
-  loadHistory();
+  startPolling(loadHistory, Number(root.dataset.refresh) || 300);
 })();
