@@ -14,21 +14,24 @@ from storage import Storage
 
 router = APIRouter()
 
-DEFAULT_RANGE = "24h"
+DEFAULT_RANGE = "3d"
 VALID_RANGES = {
     "1h": timedelta(hours=1),
+    "6h": timedelta(hours=6),
+    "12h": timedelta(hours=12),
     "24h": timedelta(hours=24),
+    "48h": timedelta(hours=48),
+    "72h": timedelta(hours=72),
+    "3d": timedelta(days=3),
     "7d": timedelta(days=7),
+    "14d": timedelta(days=14),
     "30d": timedelta(days=30),
+    "180d": timedelta(days=180),
+    "360d": timedelta(days=360),
     "all": None,
 }
-RANGE_OPTIONS = [
-    ("1h", "1h"),
-    ("24h", "24h"),
-    ("7d", "7d"),
-    ("30d", "30d"),
-    ("all", "All"),
-]
+RANGE_OPTIONS = ([(f"{hours}h", f"{hours} hours") for hours in (6, 12, 24, 48, 72)]
+                 + [(f"{days}d", f"{days} days") for days in (3, 7, 14, 30, 180, 360)])
 CSV_FIELDS = ["timestamp", "temperature", "humidity", "pressure", "battery"]
 
 
@@ -115,6 +118,7 @@ async def sensor_page(
             "friendly_name": _friendly_name(mac, settings),
             "range": range_value,
             "range_options": RANGE_OPTIONS,
+            "refresh_seconds": settings.dashboard_refresh_seconds,
             "using_default_credentials": settings.is_using_default_credentials(),
         },
     )

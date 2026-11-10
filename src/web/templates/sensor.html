@@ -3,7 +3,7 @@
 {% block title %}{{ friendly_name }} · RuuviHub{% endblock %}
 
 {% block content %}
-<div id="sensor-page" data-mac="{{ mac }}" data-range="{{ range }}">
+<div id="sensor-page" data-mac="{{ mac }}" data-range="{{ range }}" data-refresh="{{ refresh_seconds }}">
   <section class="section">
     <div class="sensor-title-row">
       <h1 id="sensor-title">{{ friendly_name }}</h1>
@@ -11,38 +11,29 @@
     <p id="sensor-mac" class="card-meta" {% if friendly_name == mac %}hidden{% endif %}>{{ mac }}</p>
     {% if request.state.csrf_token %}<p class="card-meta">Rename this tag from the <a href="/config">Config</a> page.</p>{% endif %}
 
-    <div class="range-selector">
-      {% for value, label in range_options %}
-      <a
-        href="/sensor/{{ mac }}?range={{ value }}"
-        class="{% if value == range %}active{% endif %}"
-      >{{ label }}</a>
-      {% endfor %}
+    <div class="weather-current" aria-label="Latest reading in this view">
+      <div><p class="weather-eyebrow">Latest reading</p><div class="weather-temperature" id="weather-temperature">— <span>°C</span></div><p class="card-meta" id="weather-seen">Loading…</p></div>
+      <dl class="weather-details"><div><dt>Humidity</dt><dd id="weather-humidity">—</dd></div><div><dt>Pressure</dt><dd id="weather-pressure">—</dd></div></dl>
     </div>
-
-    <p><a href="/api/history/{{ mac }}/export?range={{ range }}">Download CSV</a></p>
-    <p id="history-status" class="card-meta"></p>
+    <div class="weather-toolbar">
+      <nav class="range-selector" aria-label="History window">
+        {% for value, label in range_options %}
+        <a href="/sensor/{{ mac }}?range={{ value }}" {% if value == range %}class="active" aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </nav>
+      <a href="/api/history/{{ mac }}/export?range={{ range }}">Download CSV</a>
+    </div>
+    <p class="card-meta">Now → past {{ range_options | selectattr('0', 'equalto', range) | map(attribute='1') | first | default(range) }} · Measured history</p>
+    <p id="history-status" class="card-meta" role="status"></p>
   </section>
-
-  <section class="section">
-    <h2>Temperature</h2>
-    <canvas id="chart-temperature"></canvas>
-  </section>
-
-  <section class="section">
-    <h2>Humidity</h2>
-    <canvas id="chart-humidity"></canvas>
-  </section>
-
-  <section class="section">
-    <h2>Pressure</h2>
-    <canvas id="chart-pressure"></canvas>
-  </section>
-
-  <section class="section">
-    <h2>Battery voltage</h2>
-    <canvas id="chart-battery"></canvas>
-  </section>
+  <div class="weather-charts">
+    {% for field, title, unit in [('temperature', 'Temperature', '°C'), ('humidity', 'Humidity', '%'), ('pressure', 'Pressure', 'hPa')] %}
+    <section class="weather-chart-panel">
+      <h2>{{ title }} <span>{{ unit }}</span></h2>
+      <div class="weather-chart"><canvas id="chart-{{ field }}" role="img" aria-label="{{ title }} history, newest on the left"></canvas></div>
+    </section>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}
 

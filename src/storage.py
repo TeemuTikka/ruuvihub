@@ -14,7 +14,7 @@ import math
 import shutil
 import sqlite3
 from collections import deque
-from contextlib import closing
+from contextlib import closing, nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -119,6 +119,41 @@ class Storage:
         return await asyncio.get_running_loop().run_in_executor(
             None, self._get_storage_stats_sync
         )
+
+    async def get_weather_summaries(self, macs, since, until, gap_seconds):
+        """Exact rolling extrema plus bounded, gap-aware trend samples.
+
+        Extrema include the full database window, independent of the ring
+        buffer or chart sampling. All synchronous work runs off the event loop.
+        """
+        if not macs:
+            return {}
+        return await asyncio.get_running_loop().run_in_executor(
+            None, self._get_weather_summaries_sync, macs, since, until, gap_seconds,
+        )
+
+    def _get_weather_summaries_sync(self, macs, since, until, gap_seconds):
+        summaries = {}
+        with closing(sqlite3.connect(self._db_path)) as conn, conn:
+            conn.execute("BEGIN")
+            for mac in macs:
+                low, high, count = conn.execute("""
+                    SELECT MIN(value), MAX(value), COUNT(value) FROM (
+                        SELECT json_extract(data, '$.temperature') AS value
+                        FROM readings WHERE mac = ? AND timestamp >= ? AND timestamp <= ?
+                        AND json_type(data, '$.temperature') IN ('integer', 'real')
+                    ) WHERE ABS(value) <= 1e308
+                """, (mac, since, until)).fetchone()
+                samples = self._get_chart_history_sync(mac, since, until, gap_seconds, 60, connection=conn)
+                summaries[mac] = {
+                    "temperature_low": low, "temperature_high": high,
+                    "reading_count": count,
+                    "trend": [{"timestamp": row["timestamp"],
+                               "temperature": row.get("temperature"),
+                               "segment": row["_chart_segments"]["temperature"]}
+                              for row in samples],
+                }
+        return summaries
 
     async def get_temperature_summaries(
         self, macs: List[str], day_start: str, day_end: str,
@@ -293,7 +328,7 @@ class Storage:
             gap_seconds, max_points,
         )
 
-    def _get_chart_history_sync(self, mac, since, until, gap_seconds, max_points):
+    def _get_chart_history_sync(self, mac, since, until, gap_seconds, max_points, connection=None):
         fields = ("temperature", "humidity", "pressure", "battery")
         where = "WHERE mac = ? AND timestamp <= ?"
         params = [mac, until]
@@ -320,9 +355,10 @@ class Storage:
             f"((COALESCE(json_type(data, '$.{field}') IN ('integer', 'real'), 0) = 0) << {index})"
             for index, field in enumerate(fields)
         )
-        with closing(sqlite3.connect(self._db_path)) as conn, conn:
-            # Count and sample one snapshot even if ingestion is active.
-            conn.execute("BEGIN")
+        with (closing(sqlite3.connect(self._db_path)) if connection is None else nullcontext(connection)) as conn:
+            # Reuse the weather summary snapshot, or open our own read snapshot.
+            if connection is None:
+                conn.execute("BEGIN")
             count = conn.execute(f"SELECT COUNT(*) FROM readings {where}", params).fetchone()[0]
             step = max(1, math.ceil(count / max(max_points - 1, 1))) if count > max_points else 1
             rows = conn.execute(f"""
