@@ -59,7 +59,8 @@ these notes.
   account and elevation model, data directory, ACLs and uninstall policy.
   Verify BLE under that account on each supported configuration.
 - Specify the practical settings/database compatibility guarantees and
-  user-visible handling of incompatible or skipped releases.
+  user-visible handling of incompatible or skipped releases. Use a simple
+  compatibility generation plus tests, not a general release-pair rules engine.
 - Define trust assumptions: unprivileged application compromise, admin
   authorization, updater/service account, local operators, release channel,
   network and filesystem. Unattended installation is outside initial scope.
@@ -73,6 +74,8 @@ these notes.
   and offline behavior. A signed version number alone cannot prove that
   metadata is fresh, and old devices may need an operator bridge after key
   rotation. Assess CI-key theft and release-workflow compromise explicitly.
+  Reuse an established signing format and verifier; do not design custom
+  cryptography or a broad update-metadata framework without demonstrated need.
 
 ## Contracts to specify
 
@@ -97,23 +100,34 @@ these notes.
    version and unrelated dev-only dependencies. Define how to validate
    a ready environment and detect a missing or changed base interpreter.
    No in-place mutation or relocation of referenced venvs.
-4. Rollback eligibility: explicit current-to-target and target-to-current
-   read/write compatibility evidence for settings and persisted schemas,
-   including skipped releases and subsequent writes. If not demonstrably
-   compatible, block the reversible flow and identify an operator-managed
-   migration/recovery process. Do not silently restore a database snapshot
-   or discard readings.
-5. External updater protocol: request schema contains only bounded release
-   identity/action; updater independently resolves allowed source and
-   metadata. Specify peer authentication, replay/duplicate handling,
-   permissions, path ownership, allowed operations, durable state/journal,
-   lock ownership, crash recovery, logging and updater upgrade/rollback.
-   Never run application-user-writable code with elevated privileges.
-6. A bridge from existing installs: old updater behavior, how the first
-   new release and management scripts are installed, legacy release/venv
-   discovery, how local update and rollback commands converge on one lock,
-   and what happens if bootstrap or refresh is interrupted. Define a
-   manual bridge if an automatic safe path cannot be proven.
+4. Rollback eligibility: assign a persisted-data compatibility generation
+   covering settings and database behavior. Reversible releases must preserve
+   bidirectional compatibility within that generation, including subsequent
+   writes and skipped releases, demonstrated by tests against supported
+   rollback targets. A matching identifier alone is not proof. Handle known
+   legacy sources with a small reviewed mapping to a generation; do not build
+   a general compatibility graph. Block incompatible or unproven transitions
+   and provide an operator-managed procedure. Never restore an older database
+   silently or discard readings.
+5. External updater command contract: one CLI with bounded actions and
+   structured status, one lock and one durable transaction record per install.
+   The updater independently resolves allowed source and metadata. Define the
+   platform-managed launch/authorization boundary, request replay/duplicate
+   handling, permissions, path ownership, recovery and logging. Use the same
+   core for local and web requests; no persistent daemon or pluggable protocol
+   framework initially. Never execute app-user-writable code with privilege.
+   Keep the updater runnable independently; handle its own initial upgrades
+   through an explicit operator maintenance procedure rather than recursive
+   self-updating machinery.
+6. One-time operator bootstrap for existing installs: inspect the actual
+   legacy layout and running selection, validate trusted bootstrap inputs,
+   preserve the previous code/environment and launch configuration, then
+   install and hand off to new management components. Do not invoke the old
+   updater to install its replacement or extend old scripts with the new
+   protocol. Define an interruption-safe handoff, restoration before handoff
+   completes, and local recovery afterwards. Replace installed management
+   entry points with new-engine wrappers; do not support simultaneous legacy
+   and new mutation paths.
 
 ## Exit criteria
 
@@ -121,8 +135,9 @@ these notes.
   block the affected platform or action, not notifications generally.
 - A worked transition covers an existing per-version venv install, a
   pre-per-version legacy install, a new installation, an offline operator
-  and a skipped release; includes failed/interrupted first update and
-  recovery with the previously installed management scripts.
+  and a skipped release. Exercise failed/interrupted bootstrap using genuine
+  legacy install layouts and verify the recorded old launch configuration
+  remains recoverable without relying on the new application.
 - Threat-boundary review demonstrates the proposed privileged updater
   cannot be steered through app-writable metadata, symlinks, archive paths,
   scripts, environment variables or arbitrary commands. If not demonstrable,

@@ -12,8 +12,8 @@ precedence over the original's proposed sequence.
 
 | Plan | Deliverable | Prerequisites |
 |---|---|---|
-| [00 - Contracts and decisions](00-contracts.md) | Supported targets, release, safety and lifecycle contracts; bridge design | None |
-| [01 - Metadata and Pi environment reuse](01-metadata-and-pi.md) | Locked release inputs and faster, manually initiated Pi updates | Relevant decisions in 00 |
+| [00 - Contracts and decisions](00-contracts.md) | Supported targets, release, safety and lifecycle contracts; explicit bootstrap design | None |
+| [01 - Metadata and Pi environment reuse](01-metadata-and-pi.md) | Dependency locks, bundles and environment preparation in small milestones | Relevant decisions in 00 |
 | [02 - Release notifications](02-notifications.md) | Non-blocking, admin-visible release checks, including dev checkouts | Version/checking decisions in 00; artifact metadata from 01 only for artifact-specific compatibility |
 | [03 - External updater and Pi integration](03-updater-and-pi.md) | Durable, recoverable engine and independently managed Pi lifecycle | 00 and 01; not dependent on 02 |
 | [04 - Windows production lifecycle](04-windows.md) | Packaged install, update and rollback on Windows | 00 and shared engine contract from 03 |
@@ -25,6 +25,39 @@ must expose controls only for a platform whose adapter is actually ready.
 Do not treat this plan as authorization to choose unresolved user-facing
 policies or to publish unsupported targets.
 
+## Simplified implementation direction
+
+- Deliver notifications independently first. Run focused feasibility checks
+  for Windows service-account BLE and older Pi offline dependencies before
+  committing to their packaging implementation.
+- Build one external command-line updater, not a persistent updater daemon,
+  plugin framework or general-purpose installer. Share release validation,
+  preparation and transaction logic; keep platform-specific operations small.
+  Platform service management launches the command and recovery independently
+  of the web process. A CLI alone does not provide authorization or reboot
+  recovery: those remain explicit platform integration requirements.
+- Use a documented one-time operator bootstrap for existing Pi installations.
+  Do not make old scripts understand new metadata or coordinate two update
+  engines. After successful handoff, installed management entry points use
+  the new engine; retained legacy scripts are not supported active entry
+  points. Preserve the old working application/environment and local recovery.
+- Start with a persisted-data compatibility generation for settings and the
+  database, backed by forward/rollback tests. Do not build a release-pair
+  compatibility graph or automatic migration planner. Known legacy transitions
+  require a small reviewed mapping; incompatible generations require a separate
+  operator procedure.
+- Use an established signing format and verification implementation, not
+  custom cryptography. Choose the smallest trust design meeting the confirmed
+  signing, rotation and compromise-recovery requirements.
+- Execute plan 01 in separate milestones: dependency locks, bundles and
+  metadata/signing, then immutable environment preparation. Wire activation
+  and existing-install migration once, in plan 03, rather than implementing a
+  temporary second update engine.
+
+Delivery sequence: notifications and feasibility checks; plan 01 milestones;
+Pi command-line updater and bootstrap; Windows lifecycle; web controls per
+validated platform. No support targets or agreed safety guarantees are removed.
+
 ## Review: material gaps corrected
 
 1. **The current Pi updater cannot bootstrap its replacement in the same
@@ -32,7 +65,7 @@ policies or to publish unsupported targets.
    copies only selected release inputs into the staged release, builds a
    per-version venv, and refreshes scripts after successful activation.
    New metadata or code cannot simply be assumed present at the expected
-   path. Phase 01 requires a tested bridge and explicitly limits the
+   path. Phase 03 requires a tested operator bootstrap and explicitly limits the
    zero-pip claim to releases managed by the new workflow.
 2. **Privilege separation needs a concrete trust model.** The current
    systemd service runs as the service user, and the Pi updater stages code

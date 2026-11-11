@@ -5,11 +5,22 @@ Status: not started. Depends on [00](00-contracts.md) and
 
 ## Scope
 
-- Implement an external engine with a stable, versioned protocol and
+- Implement one external command-line engine with bounded actions and
+  structured status, not a daemon or general-purpose plugin framework. Use an
   independently runnable runtime, durable state outside release directories,
-  and a per-installation lock. Define its own bootstrap, upgrade and rollback
-  so a broken release or venv cannot take down recovery. Route all new manual
-  and web-triggered operations through the same serialization mechanism.
+  and a per-installation lock. Reuse plan 01's environment preparation; keep
+  shared validation and transaction handling in the core. Limit platform
+  operations to preparation specifics, service stop/start, activation/restore
+  and health checking; no dynamic adapter discovery or extension registry.
+- Use platform service management to launch the command independently of the
+  web process and to run recovery after interruption/reboot. Define a narrow,
+  authorized web launch boundary, not arbitrary privileged command execution.
+  Route local update/revert commands through the same core and lock. A broken
+  release or application venv must not prevent recovery.
+- Keep initial updater upgrades an explicit operator maintenance action,
+  separately validated with a retained working updater and recovery procedure.
+  Reject releases requiring a newer updater until that action is complete;
+  do not implement recursive updater self-update in the application transaction.
 - Enforce the agreed trust boundary: the unprivileged app submits only a
   restricted action and release identity; the privileged side independently
   validates allowed source, manifest, compatibility, ownership and paths.
@@ -33,7 +44,9 @@ Status: not started. Depends on [00](00-contracts.md) and
   local command-line approval, warning and audit; no web bypass. Do not turn
   failed signature verification into a silent unsigned fallback.
 - Stage application and immutable environment while collection continues.
-  Preflight data compatibility and any required consistent backup. Journal
+  Preflight the compatibility generation and supporting evidence specified in
+  plan 00; do not construct a release-pair compatibility engine. Perform any
+  required consistent backup. Journal
   the last known working code, environment and launch configuration before
   stopping, switching and restarting. Verify service/process and expected
   `/healthz` version; on failure restore and independently health-check the
@@ -49,10 +62,35 @@ Status: not started. Depends on [00](00-contracts.md) and
   Bound failed staging/diagnostic retention after later success or explicit
   cleanup; prune only resources unreferenced by active, pending, rollback or
   recovery-required state.
-- Migrate existing Pi scripts and service without a window in which old
-  commands can race the new engine. If legacy commands cannot participate
-  in the same lock safely, require an explicit operator bridge rather than
-  claiming concurrent safety. Preserve offline manual archive workflow.
+- Integrate new installs directly with the new engine. Migrate existing Pi
+  installations with the one-time bootstrap below. Preserve offline manual
+  archive updates through the CLI; do not retain a second active update engine.
+
+## One-time operator bootstrap
+
+1. Require explicit operator invocation and no in-flight legacy management
+   operation. The old scripts do not honor the new lock; do not claim the lock
+   prevents an independently launched legacy command. Document this exclusive
+   maintenance window and fail on detected conflicts.
+2. Inspect the actual installation, service configuration and legacy venv
+   layout. Record the working release/environment and launch configuration;
+   preserve shared settings, readings, logs, certs and custom paths.
+3. Validate bootstrap provenance using operator-established trust before
+   privileged execution, then prepare the independent updater and required
+   offline inputs. Never execute bootstrap code merely because it came from
+   an application-writable release directory.
+4. Durably record the handoff and atomically replace installed management
+   entry points with thin new-engine wrappers. Install service/recovery wiring
+   without overwriting an executing script in place. Retain the old launch
+   configuration for restoration, not as a concurrently supported updater.
+5. Verify the current application still runs and local status/recovery works.
+   Mark bootstrap complete only after verification. Interrupted bootstrap must
+   resume or restore the pre-handoff setup; it must not report success early.
+
+Bootstrap establishes management state, not a simultaneous application
+upgrade. Perform the first application update as a separate normal transaction
+after bootstrap verification. Preserve rollback to the recorded legacy
+application where compatibility has been reviewed.
 
 ## Acceptance
 
@@ -75,7 +113,10 @@ Status: not started. Depends on [00](00-contracts.md) and
   the last known good resources and application data/credentials/certificates.
 - Test malicious unprivileged request fields and writable path/symlink swaps;
   verify the updater cannot execute injected code or access arbitrary paths.
-- Exercise the actual old-script-to-new-updater bridge, including failure
-  during first transition and coexistence with legacy installs. Run Pi
+- Exercise bootstrap from genuine old per-version and single-venv layouts,
+  including interruption at each handoff boundary, restoration, conflicting
+  legacy operation detection and a fully offline run. Verify installed
+  management entry points no longer invoke the old engine. Test the first
+  normal update and rollback to the recorded legacy application separately. Run Pi
   systemd and representative hardware tests before advertising support.
 - Update Pi, developer, general and release documentation as applicable.

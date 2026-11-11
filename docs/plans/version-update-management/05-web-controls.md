@@ -18,6 +18,10 @@ updater/adapter from [03](03-updater-and-pi.md) and/or
   release identity, compatibility and update consequences before explicit
   confirmation; never submit arbitrary URLs, paths or shell commands.
   Independently revalidate on the updater side to handle stale UI state.
+- Keep routes thin: submit a bounded request through the platform-managed
+  launch boundary and read structured durable status from the command-line
+  engine. Do not duplicate installation logic, launch arbitrary elevated
+  commands or add a permanent updater daemon solely for UI progress.
 - Prevent duplicate/concurrent actions and expose durable progress: idle,
   downloading, preparing, activating, verifying, succeeded, rolled back,
   failed and recovery-required, including separately reported update and
