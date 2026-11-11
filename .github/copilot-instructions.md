@@ -43,7 +43,7 @@ CRLF scripts. Editing tools on Windows can silently reintroduce CRLF.
 1. After editing, verify line endings didn't flip to CRLF — e.g.
    `git diff --stat` should show a normal line-count diff, not a
    "CRLF will be replaced by LF" warning from git, and
-   `(Get-Content <file> -Raw) -match "`r`n"` should be `False`.
+   in PowerShell, `(Get-Content <file> -Raw) -match "`r`n"` should be `False`.
 2. If CRLF crept in, normalize back to LF before committing.
 3. Prefer verifying syntax with `bash -n scripts/<file>.sh` (via WSL if
    on Windows, since native Windows bash isn't available) rather than

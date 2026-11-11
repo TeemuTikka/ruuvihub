@@ -25,6 +25,9 @@ Each round the user answers reshapes the tree: settled decisions push the fronti
 
 If a question can be answered by exploring the codebase, explore the codebase instead of asking the user. Never ask the user for a fact you could look up yourself.
 
-The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed.
+Stop immediately if the user asks to stop, pause, or switch tasks. Summarize
+settled decisions and leave unresolved branches explicitly open; do not
+continue interviewing to exhaust the tree. Otherwise, the session is done
+when the frontier is empty: every branch visited, nothing silently assumed.
 
 Do not start implementing without permission.

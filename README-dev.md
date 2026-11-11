@@ -58,6 +58,13 @@ files, and private sensor data out of prompts and generated commits.
 | OpenAI Codex CLI | Install and sign in to Codex CLI, open a terminal at the repository root, then run `codex`. Codex CLI automatically loads this repository's [`AGENTS.md`](AGENTS.md); see the [official AGENTS.md guidance](https://developers.openai.com/api/docs/guides/latest-model#using-agents-md). |
 | Other coding agents | Open the repository root as the workspace and provide this guide, the relevant issue, and the test command. The project has no provider-specific setup requirement for other agents. |
 
+Workspace-specific guidance in [`.github/instructions/`](.github/instructions/)
+covers settings, web administration/security, and sensor data. The on-demand
+skills in [`.agents/skills/`](.agents/skills/) include Pi deployment and
+dashboard validation workflows. Automatic discovery and file-scoped
+instructions depend on the agent/tool; provide these files as context
+explicitly when the tool does not load them.
+
 For example, give your agent a bounded task and a way to check its work:
 
 ```text
