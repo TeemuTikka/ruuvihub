@@ -19,12 +19,17 @@ without self-update.
 - Build and validate target-specific artifacts in Windows CI from the same
   reviewed dependency inputs. Bundle the Python runtime; keep prior bundle
   and runtime independently restorable. Do not mutate locked running files.
-  The shared engine performs transaction handling; the adapter manages
+  The shared command-line engine performs transaction handling; a small
+  platform implementation manages
   Windows-specific preparation, activation, restart and restore.
 - Integrate a least-privilege control boundary, restricted request protocol
   and independent recovery runtime. Gate installed-update capability on
   validated artifact, account/ACL and persisted-data compatibility. Source
   checkouts remain notification-only.
+- Use Windows service management to launch update/recovery independently of
+  the app, without introducing a second persistent updater daemon. Implement
+  the narrow command/authorization boundary from plan 03, not a parallel
+  Windows transaction engine or plugin framework.
 - Support a fully offline manually transferred update, including all runtime
   and dependencies, as well as the default online flow. Exact package
   boundaries must account for the bundled runtime and are not assumed to be
