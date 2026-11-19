@@ -78,7 +78,7 @@ access to the environment only to trusted release maintainers and workflows.
 
 The workflow signs the exact bytes of `release-metadata.json`, verifies the
 signature against the configured public key, and checks the archive against the
-metadata. GitHub CLI uploads the archive, JSON, detached
+metadata. GitHub CLI uploads the Pi archive, Windows x64 installer, JSON, detached
 `release-metadata.json.sig`, and `ruuvihub-pi-bootstrap.pyz` to a draft before
 publishing. The bootstrap includes the same public key and is initially
 trusted via download from the project's GitHub release over validated HTTPS.
@@ -103,8 +103,12 @@ python scripts/build_release.py v1.1.0 --output-dir dist --minimum-updater-versi
 
 The local metadata alone is unsigned and must not be used to authenticate an update.
 
-The metadata builder can also cover a compiled Windows installer: run it
+The Windows job builds the installer on a Windows runner using a pinned,
+hash-verified embeddable Python ZIP and Inno Setup compiler. It uses the
+public-key variable from the protected `release-signing` environment;
+the signing step alone receives the private-key secret. The metadata
+builder can also cover a locally compiled Windows installer: run it
 with `--windows-installer` and the `ruuvihub-vX.Y.Z-windows-x64.exe` file.
 Keep the installer beside the metadata and Pi archive when signing; signing
-checks the exact bytes of both artifacts. The publishing workflow still
-only builds and publishes the Pi assets until Windows setup is wired in.
+checks the exact bytes of both artifacts. This does not Authenticode-sign
+the Windows executable.

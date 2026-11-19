@@ -3,8 +3,7 @@ name: Release
 # Triggered by the vX.Y.Z tag pushed by autotag.yml (or a manual
 # MAJOR/MINOR tag you push yourself). Re-runs tests as a safety net,
 # assembles the install-package contents, and publishes a GitHub
-# Release with the archive attached — this is the file you transfer
-# to a Raspberry Pi and install/update with (see README-pi.md).
+# Release with the signed Raspberry Pi and Windows artifacts.
 
 on:
   push:
@@ -89,8 +88,50 @@ jobs:
             "$RUNNER_TEMP/previous" "$RUNNER_TEMP/previous-venv/bin/python" \
             "$GITHUB_WORKSPACE" "$RUNNER_TEMP/candidate-venv/bin/python"
 
+  windows-installer:
+    runs-on: windows-2025
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          architecture: x64
+
+      - name: Build Windows x64 installer
+        env:
+          RELEASE_SIGNING_PUBLIC_KEY: ${{ vars.RELEASE_SIGNING_PUBLIC_KEY }}
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $version = if ($env:VERSION_INPUT) { $env:VERSION_INPUT } else { $env:GITHUB_REF_NAME }
+          $zip = Join-Path $env:RUNNER_TEMP 'python-embed.zip'
+          $inno = Join-Path $env:RUNNER_TEMP 'innosetup.exe'
+          $compiler = Join-Path $env:RUNNER_TEMP 'inno'
+          $pythonHash = '0ba1ee4bfcbdc3a559d27e2e9ce76d04a7839947a23f46375872c755c0d463b8'
+          Invoke-WebRequest 'https://www.python.org/ftp/python/3.13.17/python-3.13.17-embeddable-amd64.zip' -OutFile $zip
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_1/innosetup-7.1.1-x64.exe' -OutFile $inno
+          if ((Get-FileHash $inno -Algorithm SHA256).Hash -ne '8a5a6711c3766a6e5fb74f280ba0e3551e719ce94538d901fdbd1f8f9920b3f0') {
+            throw 'Inno Setup SHA-256 does not match'
+          }
+          $install = Start-Process $inno -ArgumentList @('/CURRENTUSER', '/PORTABLE=1', '/VERYSILENT',
+            '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$compiler`"") -Wait -PassThru
+          if ($install.ExitCode) { throw "Inno Setup installation failed: $($install.ExitCode)" }
+          python scripts\build_windows_payload.py $version --python-zip $zip --python-sha256 $pythonHash
+          python scripts\build_windows_installer.py $version "dist\ruuvihub-$version-windows-x64" --iscc (Join-Path $compiler 'ISCC.exe')
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-installer
+          path: dist/ruuvihub-*-windows-x64.exe
+          if-no-files-found: error
+
   build-and-release:
-    needs: [test, persisted-data-compatibility]
+    needs: [test, persisted-data-compatibility, windows-installer]
     runs-on: ubuntu-latest
     environment: release-signing
     env:
@@ -106,7 +147,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Assemble release archive
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: windows-installer
+          path: dist
+
+      - name: Install locked dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Assemble release archive and metadata
         env:
           # inputs.* is only populated on workflow_call; on a direct tag
           # push it's empty, so fall back to the pushed tag name.
@@ -114,12 +163,12 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${VERSION_INPUT:-$GITHUB_REF_NAME}"
-          python scripts/build_release.py "$VERSION" --output-dir dist --minimum-updater-version "$UPDATER_VERSION"
+          WINDOWS_INSTALLER="dist/ruuvihub-${VERSION}-windows-x64.exe"
+          python scripts/build_release.py "$VERSION" --output-dir dist \
+            --minimum-updater-version "$UPDATER_VERSION" --windows-installer "$WINDOWS_INSTALLER"
           echo "ARCHIVE_PATH=dist/ruuvihub-${VERSION}.tar.gz" >> "$GITHUB_ENV"
+          echo "WINDOWS_INSTALLER=$WINDOWS_INSTALLER" >> "$GITHUB_ENV"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-
-      - name: Install locked dependencies
-        run: python -m pip install -r requirements.txt
 
       - name: Sign and verify release metadata
         env:
@@ -140,5 +189,5 @@ jobs:
         run: |
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "$VERSION" --generate-notes \
-            "$ARCHIVE_PATH" dist/release-metadata.json dist/release-metadata.json.sig \
+            "$ARCHIVE_PATH" "$WINDOWS_INSTALLER" dist/release-metadata.json dist/release-metadata.json.sig \
             dist/ruuvihub-pi-bootstrap.pyz

@@ -6,8 +6,8 @@ verify and stage the Windows installer artifact. The launcher binds each
 release to its own bundled Python and keeps data outside the payload.
 Per-user task selection and rollback are implemented. The Inno Setup
 installer supports first install and a controlled update mode. The updater
-can check, install, or revert a release. Release publication and live
-Windows validation remain.
+can check, install, or revert a release. CI builds the installer and includes
+it in signed release metadata. Live Windows validation remains.
 Use Windows-specific installation/update behavior; share the release metadata
 and signature checks, not a cross-platform transaction engine. Development
 checkouts remain notification-only.
