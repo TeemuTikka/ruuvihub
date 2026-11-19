@@ -2,8 +2,9 @@
 
 Status: in progress. A build helper creates the Windows x64 app payload
 using an embeddable Python ZIP and locked wheels. Release tooling can sign,
-verify and stage the Windows installer artifact. The installer, updater,
-and choice of service or user-session mode remain.
+verify and stage the Windows installer artifact. The launcher binds each
+release to its own bundled Python and keeps data outside the payload.
+The installer, updater, and choice of service or user-session mode remain.
 Use Windows-specific installation/update behavior; share the release metadata
 and signature checks, not a cross-platform transaction engine. Development
 checkouts remain notification-only.

@@ -53,7 +53,9 @@ def build_payload(version: str, archive: Path, digest: str, output: Path, *, roo
     destination = output / f"ruuvihub-{version}-windows-x64"
     if destination.exists() or destination.is_symlink():
         raise FileExistsError(destination)
-    files = collect_release_files(root, [(root / name, name) for name in _APP_INPUTS])
+    files = collect_release_files(
+        root, [(root / name, name) for name in _APP_INPUTS] + [(root / "scripts/windows_launch.py", "run.py")],
+    )
     output.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix=".windows-payload-", dir=output) as temp:
         staged = Path(temp) / "payload"
