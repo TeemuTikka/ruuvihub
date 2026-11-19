@@ -4,7 +4,8 @@ Status: in progress. A build helper creates the Windows x64 app payload
 using an embeddable Python ZIP and locked wheels. Release tooling can sign,
 verify and stage the Windows installer artifact. The launcher binds each
 release to its own bundled Python and keeps data outside the payload.
-The installer, updater, and choice of service or user-session mode remain.
+Per-user task selection and rollback are implemented; installer and updater
+entry points and real Windows validation remain.
 Use Windows-specific installation/update behavior; share the release metadata
 and signature checks, not a cross-platform transaction engine. Development
 checkouts remain notification-only.
@@ -23,10 +24,10 @@ checkouts remain notification-only.
   Windows updater handles later updates and invokes the installer in its
   controlled update mode. Do not duplicate the Pi updater or share its
   transaction implementation.
-- Test BLE scanning in the background service first. If it does not work,
-  use the whole app in the logged-in user session; scanning pauses at sign-out.
-  Choose and clearly identify one mode during setup. Do not add a separate
-  BLE helper process or switch modes silently.
+- Use the whole app in the logged-in user session via Task Scheduler;
+  scanning pauses at sign-out. The operator chose this mode without testing
+  BLE under a service account. Identify the mode during setup and do not
+  add a separate BLE helper process.
 - Use the Windows updater to download and stage a new version, then
   activate it only after verification and preparation. Put the app and bundled
   Python in each versioned release directory. With the app stopped, select one
@@ -58,6 +59,6 @@ checkouts remain notification-only.
   does not alter current app files or persistent data.
 - Use the same previous-release database/settings compatibility check as the
   Pi release before shipping a Windows update that changes persisted data.
-- Verify BLE under the service account. If it fails, verify the selected
-  user-session mode while logged in and document its sign-out behavior.
+- Verify BLE in the selected user-session mode while logged in and document
+  its sign-out behavior.
 - Update Windows, developer, general and release documentation.

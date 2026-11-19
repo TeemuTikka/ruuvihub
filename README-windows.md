@@ -8,6 +8,8 @@ structure, key classes, and debugging guidance, see
 The signed Windows installer and updater are not yet available. The
 versioned Windows x64 payload can be built locally; see
 [Windows release payload](README-dev.md#windows-release-payload).
+The managed install will run under your logged-in user, not as a Windows
+service. Scanning pauses when you sign out.
 
 ---
 

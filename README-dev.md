@@ -871,6 +871,10 @@ release. Settings, SQLite, logs, and TLS files live outside the payload.
 `scripts/windows_release.py` can verify a local installer or stage the
 latest signed installer without executing it. It shares the approved-source
 download and signature verification code with Pi, not the activation logic.
+`scripts/windows_task.py` selects a release with a single per-user Task
+Scheduler action. `scripts/windows_activation.py` records the switch,
+checks the selected version on loopback, and restores the previous task
+action on failure without restoring older persistent data.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
