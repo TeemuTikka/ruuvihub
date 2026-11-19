@@ -775,7 +775,7 @@ versioning, packaging, and code scanning (see
 |---|---|---|
 | `ci.yml` | Main pushes, pull requests to `main`, or manual dispatch | Checks the dependency lock and generated pip exports, then runs the hardware-free tests on Ubuntu and Windows with Python 3.11. Doesn't tag or publish anything. |
 | `autotag.yml` | Push to `main`, when `AUTO_RELEASE_ENABLED` is `true` | Re-runs tests, selects the next stable patch tag with `scripts/next_release_tag.py`, pushes it, and directly invokes `release.yml`. The minimum version is `v1.1.0`; normal patch bumps follow it. A concurrency group serializes runs; commits that are no longer the tip of `main` or already have a stable release tag are skipped. |
-| `release.yml` | Push of a `v*` tag, or invoked by `autotag.yml` | Re-runs tests, builds the archive with `scripts/build_release.py`, and publishes it as a GitHub Release. Version input must be a stable `vX.Y.Z` tag. The archive includes source, scripts, bootstrap config, runtime requirements, `README-pi.md`, a generated `VERSION`, the hardware check as `scripts/test_connection.py`, and third-party license notices. Root `LICENSE` and `SECURITY.md` are required inputs. Local runtime state and bytecode are excluded; private files nested inside packaged folders fail the build. |
+| `release.yml` | Push of a `v*` tag, or invoked by `autotag.yml` | Re-runs tests, checks persisted-data compatibility, builds the archive with `scripts/build_release.py`, and publishes it as a signed GitHub Release. Version input must be a stable `vX.Y.Z` tag. The archive includes source, scripts, bootstrap config, runtime requirements, `README-pi.md`, a generated `VERSION`, the hardware check as `scripts/test_connection.py`, and third-party license notices. Root `LICENSE` and `SECURITY.md` are required inputs. Local runtime state and bytecode are excluded; private files nested inside packaged folders fail the build. |
 | `codeql.yml` | Push/PR to `main`, weekly, or manual | Scans Python and JavaScript once the repository is public. Skips while private on the current plan. |
 
 For a bigger bump than the automatic patch increment, push a `vX.Y.0`
@@ -845,6 +845,11 @@ keeps release selection and systemd configuration root-controlled.
 After a healthy switch, the updater validates both retained releases before
 pruning unused managed releases and environments. Environment cleanup runs
 as the service user; it does not touch backups or the original legacy tree.
+
+Release CI runs `scripts/check_persisted_upgrade.py` against the previous
+published stable tag before signing. It runs both versions' startup paths
+with synthetic data and separate dependencies, then checks that both
+versions can read and write settings and SQLite after the upgrade and revert.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in

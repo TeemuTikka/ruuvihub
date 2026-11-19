@@ -44,8 +44,53 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -q --ignore=tests/test_connection.py
 
+  persisted-data-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Compare with the immediately previous published stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${VERSION_INPUT:-$GITHUB_REF_NAME}"
+          stable='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          [[ "$version" =~ $stable ]]
+          published="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+            --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')"
+          previous=""
+          while IFS= read -r tag; do
+            if [[ "$tag" =~ $stable && "$tag" != "$version" && \
+                  "$(printf '%s\n' "$tag" "$version" | sort -V | head -n 1)" == "$tag" ]]; then
+              previous="$tag"
+              break
+            fi
+          done < <(printf '%s\n' "$published" | sort -Vr)
+          if [[ -z "$previous" ]]; then
+            echo "No preceding published stable release."
+            exit 0
+          fi
+          git fetch --no-tags origin "refs/tags/$previous"
+          git worktree add --detach "$RUNNER_TEMP/previous" FETCH_HEAD
+          python -m venv "$RUNNER_TEMP/previous-venv"
+          python -m venv "$RUNNER_TEMP/candidate-venv"
+          "$RUNNER_TEMP/previous-venv/bin/python" -m pip install -r "$RUNNER_TEMP/previous/requirements.txt"
+          "$RUNNER_TEMP/candidate-venv/bin/python" -m pip install \
+            --require-hashes --only-binary=:all: -r requirements.txt
+          python scripts/check_persisted_upgrade.py \
+            "$RUNNER_TEMP/previous" "$RUNNER_TEMP/previous-venv/bin/python" \
+            "$GITHUB_WORKSPACE" "$RUNNER_TEMP/candidate-venv/bin/python"
+
   build-and-release:
-    needs: test
+    needs: [test, persisted-data-compatibility]
     runs-on: ubuntu-latest
     environment: release-signing
     env:

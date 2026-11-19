@@ -57,6 +57,14 @@ Source checkouts report `dev`; CI-generated archives contain a `VERSION`
 file with their tag. The live hardware test `tests/test_connection.py`
 remains excluded from the normal CI suite.
 
+Before publication, release CI also finds the preceding published stable
+tag and runs `scripts/check_persisted_upgrade.py` with separate Python
+environments. It seeds a disposable SQLite database and settings with the
+previous app, starts the candidate and writes through it, then starts the
+previous app again and verifies its writes survive reopening the candidate.
+The probe disables BLE, upload and web-server loops. Failures block
+publication; the first release skips this check if no predecessor exists.
+
 ## Release signing
 
 The publishing workflow uses a protected GitHub Actions environment named

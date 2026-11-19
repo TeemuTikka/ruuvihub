@@ -8,8 +8,9 @@ The systemd handoff helper can switch an already prepared layout and
 restore the original unit on failure. Existing-install bootstrap prepares
 that layout without moving persistent files and is packaged by release CI.
 The same bundle supports managed clean installs. Successful switches prune
-unselected managed releases and environments. Persisted-data compatibility
-checks and live Pi validation remain.
+unselected managed releases and environments. Release CI checks persisted
+data compatibility against the previous published release. Live Pi
+validation remains.
 Depends on [00](00-contracts.md) and [01](01-metadata-and-pi.md).
 
 ## Pi updater
