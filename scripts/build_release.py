@@ -25,14 +25,7 @@ _REQUIRED_FILES = (
 )
 
 
-def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path(".")) -> Path:
-    if _VERSION.fullmatch(version) is None:
-        raise ValueError("version must be a stable vX.Y.Z tag")
-    for name in _REQUIRED_FILES:
-        if not (root / name).is_file():
-            raise FileNotFoundError(f"Missing required release input: {name}")
-    sources = [(root / name, name) for name in _REQUIRED]
-    sources.append((root / "tests/test_connection.py", "scripts/test_connection.py"))
+def collect_release_files(root: Path, sources: list[tuple[Path, str]]) -> list[tuple[Path, Path]]:
     files = []
     for source, destination in sources:
         if not source.exists():
@@ -49,6 +42,18 @@ def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path("."))
             if path.is_file():
                 target = Path(destination) / path.relative_to(source) if source.is_dir() else Path(destination)
                 files.append((path, target))
+    return files
+
+
+def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path(".")) -> Path:
+    if _VERSION.fullmatch(version) is None:
+        raise ValueError("version must be a stable vX.Y.Z tag")
+    for name in _REQUIRED_FILES:
+        if not (root / name).is_file():
+            raise FileNotFoundError(f"Missing required release input: {name}")
+    sources = [(root / name, name) for name in _REQUIRED]
+    sources.append((root / "tests/test_connection.py", "scripts/test_connection.py"))
+    files = collect_release_files(root, sources)
     output_dir.mkdir(parents=True, exist_ok=True)
     archive_path = output_dir / f"ruuvihub-{version}.tar.gz"
     fd, temporary_path = tempfile.mkstemp(dir=output_dir, suffix=".tar.gz")

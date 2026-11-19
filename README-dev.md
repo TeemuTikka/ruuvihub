@@ -851,6 +851,21 @@ published stable tag before signing. It runs both versions' startup paths
 with synthetic data and separate dependencies, then checks that both
 versions can read and write settings and SQLite after the upgrade and revert.
 
+#### Windows release payload
+
+On Windows x64, run the payload builder with an x64 build Python from the
+same major/minor series as the official embeddable Python ZIP:
+
+```powershell
+python scripts\build_windows_payload.py v1.2.0 --python-zip C:\downloads\python-embed-amd64.zip --python-sha256 <trusted-sha256>
+```
+
+Obtain the archive and verify its provenance using the upstream Python
+release's signature or attestation before supplying its SHA-256. The builder
+installs the locked wheel dependencies into the bundled interpreter and
+writes `dist\ruuvihub-v1.2.0-windows-x64`. The directory contains the app
+and runtime together; it is an installer input, not an installed app.
+
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
 `GITHUB_TOKEN`. Keep repo **Settings → Actions → General → Workflow

@@ -5,6 +5,10 @@ For deploying to Raspberry Pi, see [README-pi.md](README-pi.md). For project
 structure, key classes, and debugging guidance, see
 [README-dev.md](README-dev.md).
 
+The signed Windows installer and updater are not yet available. The
+versioned Windows x64 payload can be built locally; see
+[Windows release payload](README-dev.md#windows-release-payload).
+
 ---
 
 ## Requirements
