@@ -7,7 +7,6 @@ import fcntl
 import os
 from pathlib import Path
 import pwd
-import re
 import shlex
 import shutil
 import subprocess
@@ -17,8 +16,9 @@ from tempfile import mkdtemp
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from pi_activation import PiActivation
+from pi_activation import _is_version, _sync_directory, PiActivation
 from pi_release import latest_pi_artifact, stage_pi_release
+from pi_update_data import MANAGED_ENVIRONMENT
 
 _UNIT = "ruuvihub.service"
 _TOOLS = Path(__file__).resolve().parent
@@ -99,7 +99,7 @@ def _prepare(base: Path, user: str, staging: Path, version: str, *, tools: Path 
     environment = Path(_as_user(user, tools / "prepare_pi_venv.py", environments, staging / "requirements.txt"))
     if (
         not environment.is_absolute() or environment.parent != environments
-        or not re.fullmatch(r"managed-[0-9a-f]{64}-[a-z0-9_]{8}", environment.name)
+        or not MANAGED_ENVIRONMENT.fullmatch(environment.name)
         or environment.resolve(strict=True) != environment
     ):
         raise ValueError("dependency preparation returned an unexpected environment path")
@@ -114,6 +114,30 @@ def _prepare(base: Path, user: str, staging: Path, version: str, *, tools: Path 
         shutil.rmtree(destination)
         raise
     return destination
+
+
+def _prune(base: Path, user: str, activation: PiActivation) -> None:
+    try:
+        retained = activation.retained_releases()
+        releases = base / "releases"
+        environments = base / "shared/venvs"
+        kept_environments = [(release / "venv").resolve(strict=True) for release in retained]
+        for candidate in releases.iterdir():
+            if (
+                candidate not in retained
+                and (_is_version(candidate.name) or candidate.name.startswith((".interrupted-", ".ruuvihub-stage-")))
+                and not candidate.is_symlink()
+                and candidate.is_dir()
+            ):
+                shutil.rmtree(candidate)
+        _sync_directory(releases)
+        keep = sorted({
+            path.relative_to(environments).parts[0] for path in kept_environments
+            if path != environments and path.is_relative_to(environments)
+        })
+        _as_user(user, _TOOLS / "pi_update_data.py", "prune-environments", environments, *keep)
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(f"Warning: release selected, but cleanup did not complete: {error}", file=sys.stderr)
 
 
 def manage(base: Path, command: str) -> None:
@@ -169,6 +193,7 @@ def manage(base: Path, command: str) -> None:
                     shutil.rmtree(prepared)
                 raise
         print(f"Selected {activation.versions()[0]}.")
+        _prune(base, user, activation)
 
 
 def main() -> None:

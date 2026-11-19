@@ -61,6 +61,8 @@ def managed(tmp_path, monkeypatch):
         calls.append(args[0])
         if args[0] == "backup":
             return "/private/backup"
+        if args[0] == "prune-environments":
+            return pi_update_data.prune_environments(args[1], set(args[2:]))
         assert (base / "current").resolve().name == args[-1]
 
     def stage(artifact, parent):
@@ -84,13 +86,13 @@ def managed(tmp_path, monkeypatch):
 def test_update_prepares_before_stop_and_reverts_offline(managed, monkeypatch):
     base, calls = managed
     pi_update.manage(base, "update")
-    assert calls == ["show", "stage", "prepare", "stop", "backup", "start", "is-active", "health"]
+    assert calls == ["show", "stage", "prepare", "stop", "backup", "start", "is-active", "health", "prune-environments"]
     assert (base / "current").resolve().name == "v1.2.0"
     monkeypatch.setattr(pi_update, "latest_pi_artifact", lambda key: pytest.fail("revert touched network"))
     (pi_update._TOOLS / "release-public.hex").unlink()
     calls.clear()
     pi_update.manage(base, "revert")
-    assert calls == ["show", "stop", "start", "is-active", "health"]
+    assert calls == ["show", "stop", "start", "is-active", "health", "prune-environments"]
     assert (base / "current").resolve().name == "v1.1.0"
 
 
@@ -156,7 +158,31 @@ def test_update_replaces_an_unselected_release_left_by_interruption(managed):
     pi_update.manage(base, "update")
     assert (base / "current").resolve() == orphan
     assert not (orphan / "interrupted").exists()
-    assert len(list(orphan.parent.glob(".interrupted-*/v1.2.0/interrupted"))) == 1
+    assert not list(orphan.parent.glob(".interrupted-*"))
+
+
+def test_cleanup_retains_both_selected_releases_and_does_not_touch_backups(managed):
+    base, _ = managed
+    environment = (base / "current/venv").resolve()
+    unused = environment.parent / ("managed-" + "1" * 64 + "-12345678")
+    unused.mkdir()
+    custom = environment.parent / "operator-environment"
+    custom.mkdir()
+    link = environment.parent / ("managed-" + "2" * 64 + "-12345678")
+    link.symlink_to(custom)
+    backup = base / "shared/backups/latest"
+    backup.mkdir(parents=True)
+    outdated = base / "releases/v1.0.0"
+    outdated.mkdir()
+
+    pi_update.manage(base, "update")
+
+    assert not outdated.exists()
+    assert not unused.exists()
+    assert backup.exists()
+    assert custom.exists() and link.is_symlink()
+    for version in ("v1.1.0", "v1.2.0"):
+        assert (base / "releases" / version / "venv").resolve(strict=True) == environment
 
 
 def test_unhealthy_update_restarts_previous_release(managed, monkeypatch):

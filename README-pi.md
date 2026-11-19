@@ -212,6 +212,9 @@ sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py revert
 
 Use `revert` only to select the previous version after an update. Revert
 works offline and does not restore an older database or settings file.
+After a successful switch, the updater keeps the selected release and one
+previous release, along with their Python environments. It does not prune
+data backups or the original legacy directory.
 
 ### Legacy archive updates
 

@@ -842,6 +842,9 @@ not the signing key.
 For a new Pi, the same bundle's `--fresh` mode installs the signed release
 directly. It puts mutable data under the service-owned `shared/data/` and
 keeps release selection and systemd configuration root-controlled.
+After a healthy switch, the updater validates both retained releases before
+pruning unused managed releases and environments. Environment cleanup runs
+as the service user; it does not touch backups or the original legacy tree.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in

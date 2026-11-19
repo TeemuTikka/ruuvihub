@@ -121,6 +121,10 @@ class PiActivation:
             raise ValueError("Pi updates must select a newer release; use revert to roll back")
         self._switch(source, target, previous, backup)
 
+    def retained_releases(self) -> set[Path]:
+        """Validate both selections before allowing any pruning."""
+        return {self._release(version) for version in self.versions() if version is not None}
+
     def revert(self) -> None:
         source, previous = self.versions()
         if previous is None:

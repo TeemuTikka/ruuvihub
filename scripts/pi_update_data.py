@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import resource
 import shutil
 import sqlite3
@@ -12,6 +13,8 @@ import sys
 import tarfile
 from tempfile import mkdtemp
 from urllib.request import build_opener, HTTPRedirectHandler, HTTPSHandler, ProxyHandler
+
+MANAGED_ENVIRONMENT = re.compile(r"managed-[0-9a-f]{64}-[a-z0-9_]{8}")
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -89,6 +92,19 @@ def check_settings(path: Path) -> None:
             raise ValueError(f"set a persistent absolute {field} before bootstrapping")
 
 
+def prune_environments(directory: Path, keep: set[str]) -> None:
+    if directory.is_symlink() or directory.resolve() != directory:
+        raise ValueError("refusing to prune an unexpected environment directory")
+    for candidate in directory.iterdir():
+        if (
+            candidate.name not in keep
+            and MANAGED_ENVIRONMENT.fullmatch(candidate.name)
+            and not candidate.is_symlink()
+            and candidate.is_dir()
+        ):
+            shutil.rmtree(candidate)
+
+
 if __name__ == "__main__":
     if os.geteuid() == 0:
         sys.exit("run the data helper as the service user")
@@ -102,6 +118,8 @@ if __name__ == "__main__":
             snapshot_release(Path(path), *args)
         elif command == "check-settings":
             check_settings(Path(path))
+        elif command == "prune-environments":
+            prune_environments(Path(path), set(args))
         else:
             sys.exit("unknown data command")
     except (OSError, ValueError, KeyError, sqlite3.Error, subprocess.SubprocessError) as error:
