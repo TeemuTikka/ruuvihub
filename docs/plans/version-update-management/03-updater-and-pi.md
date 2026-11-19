@@ -4,7 +4,9 @@ Status: in progress. Verified release download and staging are implemented
 in `scripts/pi_release.py`. Atomic selection and revert are implemented
 in `scripts/pi_activation.py`. The operator command now combines these
 helpers with systemd checks and pre-update SQLite/settings backups.
-Bootstrap, pruning, and persisted-data compatibility checks remain.
+The systemd handoff helper can switch an already prepared layout and
+restore the original unit on failure. Bootstrap distribution and layout
+preparation, pruning, and persisted-data compatibility checks remain.
 Depends on [00](00-contracts.md) and [01](01-metadata-and-pi.md).
 
 ## Pi updater

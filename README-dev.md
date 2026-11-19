@@ -831,6 +831,9 @@ For an existing installation, the managed layout can pin its original
 virtualenv through `shared/legacy-venv`. The service keeps using the original
 settings path; a link under the managed `shared/` directory lets the backup
 and health helpers read that same file without changing where the app saves it.
+`scripts/pi_handoff.py` provides the systemd part of that transition: it
+writes an override for the prepared layout and removes it if the managed
+service cannot start and report the existing version.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
