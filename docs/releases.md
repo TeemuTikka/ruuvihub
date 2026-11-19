@@ -55,3 +55,13 @@ and automatic version tags on the same change.
 Source checkouts report `dev`; CI-generated archives contain a `VERSION`
 file with their tag. The live hardware test `tests/test_connection.py`
 remains excluded from the normal CI suite.
+
+The local release builder can also generate a preliminary metadata file:
+
+```bash
+python scripts/build_release.py v1.1.0 --output-dir dist --minimum-updater-version v1.0.0
+```
+
+`release-metadata.json` records the release version, minimum updater version,
+archive name, byte size and SHA-256 hash. This file is currently **unsigned**,
+is not published by CI, and must not be used to authenticate an update.

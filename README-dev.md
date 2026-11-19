@@ -790,6 +790,9 @@ does not publish a release. Automatic main releases remain off until the
 repository Actions variable `AUTO_RELEASE_ENABLED` is set to `true`.
 For a fresh repository, finish security settings and CI, manually tag the
 reviewed initial commit as `v1.1.0`, then enable automatic patch releases.
+The builder also supports preliminary unsigned release metadata; see
+[release maintenance](docs/releases.md). It is not published or used for
+update authentication yet.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in

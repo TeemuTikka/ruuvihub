@@ -1,5 +1,8 @@
 """Validate release version selection and the artifact's public contents."""
 
+import hashlib
+import io
+import json
 from pathlib import Path
 import sys
 import tarfile
@@ -7,7 +10,7 @@ import tarfile
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from build_release import build_archive
+from build_release import build_archive, build_metadata
 from next_release_tag import next_release_tag
 
 
@@ -63,6 +66,49 @@ def test_release_archive_contents(release_source, tmp_path):
         assert not any("settings.local" in name or "__pycache__" in name
                        or name.endswith(".db") or name.startswith("tests/") for name in names)
         assert archive.extractfile(prefix + "VERSION").read() == b"v1.1.0\n"
+
+
+def test_release_metadata_describes_archive(release_source, tmp_path):
+    archive_path = build_archive("v1.1.0", release_source, tmp_path / "output")
+    metadata = json.loads(build_metadata("v1.1.0", archive_path, "v1.0.0"))
+    assert metadata == {
+        "version": "v1.1.0",
+        "minimum_updater_version": "v1.0.0",
+        "artifacts": {
+            "linux-arm64": {
+                "name": archive_path.name,
+                "size": archive_path.stat().st_size,
+                "sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+            }
+        },
+    }
+
+
+@pytest.mark.parametrize("version, minimum", [
+    ("v1.1.0-rc1", "v1.0.0"), ("v1.1.0", "../v1.0.0"),
+])
+def test_metadata_rejects_invalid_versions(release_source, tmp_path, version, minimum):
+    archive_path = build_archive("v1.1.0", release_source, tmp_path / "output")
+    with pytest.raises(ValueError, match="stable vX.Y.Z"):
+        build_metadata(version, archive_path, minimum)
+
+
+def test_metadata_rejects_archive_name_mismatch(release_source, tmp_path):
+    archive_path = build_archive("v1.1.0", release_source, tmp_path / "output")
+    with pytest.raises(ValueError, match="archive name"):
+        build_metadata("v1.1.1", archive_path, "v1.0.0")
+
+
+@pytest.mark.parametrize("versions", [[], [b"v1.1.1\n"], [b"v1.1.0\n", b"v1.1.0\n"]])
+def test_metadata_rejects_invalid_archive_version(tmp_path, versions):
+    archive_path = tmp_path / "ruuvihub-v1.1.0.tar.gz"
+    with tarfile.open(archive_path, "w:gz") as archive:
+        for data in versions:
+            member = tarfile.TarInfo("ruuvihub-v1.1.0/VERSION")
+            member.size = len(data)
+            archive.addfile(member, io.BytesIO(data))
+    with pytest.raises(ValueError, match="VERSION"):
+        build_metadata("v1.1.0", archive_path, "v1.0.0")
 
 
 @pytest.mark.parametrize("name", ["src/settings.local.json", "scripts/backup.db", "src/certs/key.pem"])

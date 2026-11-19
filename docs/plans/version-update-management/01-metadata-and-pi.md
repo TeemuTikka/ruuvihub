@@ -1,7 +1,9 @@
 # 01 - Release metadata and Pi environment reuse
 
 Status: in progress. The dependency manifest, lock and hash-verified pip
-exports are complete. Release metadata and environment reuse remain.
+exports are complete. Preliminary unsigned release metadata generation is
+available locally; signing, publication, verification and environment reuse
+remain.
 Depends on the relevant [contracts](00-contracts.md). Production activation
 and the existing-install transition are integrated once in plan 03.
 
