@@ -90,3 +90,62 @@ def test_bootstrap_publishes_same_app_and_environment_before_handoff(monkeypatch
 
         assert calls == ["legacy check", "legacy check", "handoff"]
         assert (legacy / "current").resolve() == release
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="the Pi installer only runs on Linux")
+@pytest.mark.parametrize("healthy", [True, False])
+def test_fresh_install_starts_only_after_verified_release_and_persistent_paths(tmp_path, monkeypatch, healthy):
+    import pi_bootstrap
+
+    base = tmp_path / "managed"
+    units = tmp_path / "system"
+    units.mkdir()
+    unit = units / "ruuvihub.service"
+    commands = []
+    artifact = SimpleNamespace(version="v2.0.0")
+    monkeypatch.setattr(pi_bootstrap, "_check_legacy_processes", lambda: None)
+    monkeypatch.setattr(pi_bootstrap, "_require_trusted_path", lambda *args: None)
+    monkeypatch.setattr(pi_bootstrap.os, "chown", lambda *args: None)
+    monkeypatch.setattr(pi_bootstrap, "_service_user", lambda path: "nobody")
+    monkeypatch.setattr(pi_bootstrap, "_healthy", lambda *args, **kwargs: healthy)
+    monkeypatch.setattr(pi_bootstrap, "latest_pi_artifact", lambda key: artifact)
+
+    def systemctl(command, *args):
+        commands.append(command)
+        if command == "show":
+            return "not-found"
+        if command == "start":
+            config = json.loads((base / "shared/config.json").read_bytes())
+            assert config["db_path"] == str(base / "shared/data/ruuvi_data.db")
+            assert config["tls_key_path"] == str(base / "shared/data/certs/ruuvihub.key")
+            assert (base / "current/src/main.py").is_file()
+            assert f"ExecStart={base}/current/venv/bin/python3 {base}/current/src/main.py" in unit.read_text()
+
+    def stage(verified, releases):
+        assert verified is artifact
+        staging = releases / ".staged"
+        (staging / "src").mkdir(parents=True)
+        (staging / "src/main.py").touch()
+        (staging / "config.json").write_text("{}")
+        return staging
+
+    def prepare(path, user, staging, version, *, tools):
+        assert (path, user, version, tools) == (base, "nobody", artifact.version, base / "tools")
+        staging.rename(base / "releases" / version)
+
+    monkeypatch.setattr(pi_bootstrap, "_systemctl", systemctl)
+    monkeypatch.setattr(pi_bootstrap, "stage_pi_release", stage)
+    monkeypatch.setattr(pi_bootstrap, "_prepare", prepare)
+    payload = dict.fromkeys(pi_bootstrap._TOOLS, b"")
+    payload["release-public.hex"] = b"01" * 32
+
+    if healthy:
+        pi_bootstrap.install(base, "nobody", payload, units)
+        assert commands == ["show", "daemon-reload", "start", "enable"]
+        assert unit.exists()
+    else:
+        with pytest.raises(RuntimeError, match="did not become healthy"):
+            pi_bootstrap.install(base, "nobody", payload, units)
+        assert commands == ["show", "daemon-reload", "start", "stop", "disable", "daemon-reload"]
+        assert not unit.exists()
+    assert (base / "shared/settings.local.json").readlink() == base / "shared/data/settings.local.json"

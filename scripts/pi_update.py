@@ -91,11 +91,12 @@ def _healthy(base: Path, user: str, version: str, *, tools: Path | None = None) 
     return False
 
 
-def _prepare(base: Path, user: str, staging: Path, version: str) -> Path:
+def _prepare(base: Path, user: str, staging: Path, version: str, *, tools: Path | None = None) -> Path:
     # Give the service user read access to verified inputs, not write access to staged code.
     staging.chmod(0o755)
     environments = base / "shared/venvs"
-    environment = Path(_as_user(user, _TOOLS / "prepare_pi_venv.py", environments, staging / "requirements.txt"))
+    tools = _TOOLS if tools is None else tools
+    environment = Path(_as_user(user, tools / "prepare_pi_venv.py", environments, staging / "requirements.txt"))
     if (
         not environment.is_absolute() or environment.parent != environments
         or not re.fullmatch(r"managed-[0-9a-f]{64}-[a-z0-9_]{8}", environment.name)

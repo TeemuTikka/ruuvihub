@@ -80,6 +80,27 @@ hcitool dev
 
 ## 3. Install
 
+### Signed online install
+
+For a new Pi with no RuuviHub service, download `ruuvihub-pi-bootstrap.pyz`
+from the [RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases).
+Use your existing unprivileged Pi account in place of `pi` if needed:
+
+```bash
+sudo apt install bluetooth bluez python3-venv python3-cryptography
+sudo /usr/bin/python3 -I ./ruuvihub-pi-bootstrap.pyz --fresh --user pi
+```
+
+The installer downloads and verifies the latest release, prepares its locked
+Python dependencies, then starts and enables `ruuvihub.service`. The managed
+layout is under `/opt/ruuvihub`; settings, readings, logs, and certificates
+live in `shared/data/` there. Open `https://<pi-ip>:8443`, accept the
+self-signed certificate, and change the default admin password on the
+Config page. If setup fails, inspect the service journal and the prepared
+directory; the installer does not overwrite that directory on a retry.
+
+### Legacy archive install
+
 From inside the extracted archive directory:
 ```bash
 sudo ./scripts/install.sh

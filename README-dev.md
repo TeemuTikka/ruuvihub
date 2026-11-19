@@ -839,6 +839,9 @@ Bootstrap snapshots the deployed app as the legacy service user, then
 extracts only validated regular files into the root-controlled layout. The
 build script `scripts/build_pi_bootstrap.py` embeds the release public key,
 not the signing key.
+For a new Pi, the same bundle's `--fresh` mode installs the signed release
+directly. It puts mutable data under the service-owned `shared/data/` and
+keeps release selection and systemd configuration root-controlled.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in

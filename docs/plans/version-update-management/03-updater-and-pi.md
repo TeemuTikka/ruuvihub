@@ -7,7 +7,8 @@ helpers with systemd checks and pre-update SQLite/settings backups.
 The systemd handoff helper can switch an already prepared layout and
 restore the original unit on failure. Existing-install bootstrap prepares
 that layout without moving persistent files and is packaged by release CI.
-Managed clean install, pruning, and persisted-data compatibility checks remain.
+The same bundle supports managed clean installs. Pruning and persisted-data
+compatibility checks remain.
 Depends on [00](00-contracts.md) and [01](01-metadata-and-pi.md).
 
 ## Pi updater
