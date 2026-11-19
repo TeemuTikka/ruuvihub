@@ -26,6 +26,7 @@ SolidCompression=yes
 
 [Files]
 Source: "{#PayloadDirectory}\*"; DestDir: "{tmp}\payload"; Flags: dontcopy noencryption recursesubdirs
+Source: "windows_update.cmd"; DestDir: "{app}"; DestName: "ruuvihub-update.cmd"; Check: not IsUpdate
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\releases"

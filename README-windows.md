@@ -11,6 +11,28 @@ local build. The managed install runs under your logged-in user, not as a
 Windows service. Scanning pauses when you sign out. Its uninstaller
 preserves settings, readings, logs, and certificates.
 
+When a signed release offers `ruuvihub-vX.Y.Z-windows-x64.exe`, download
+it from the [RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases)
+and run it while signed in to the account that will use RuuviHub. Setup
+requires an internet connection to check the release signature and
+installer digest. The installer is not Authenticode-signed, so Windows
+may warn that the publisher is unknown. Don't run copies from mirrors.
+
+The app and its Python runtime install under
+`%LOCALAPPDATA%\Programs\RuuviHub`; data lives under `%LOCALAPPDATA%\RuuviHub`.
+Use these commands in PowerShell while signed in:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\RuuviHub\ruuvihub-update.cmd" status
+& "$env:LOCALAPPDATA\Programs\RuuviHub\ruuvihub-update.cmd" update
+& "$env:LOCALAPPDATA\Programs\RuuviHub\ruuvihub-update.cmd" revert
+```
+
+`update` backs up settings and SQLite before switching releases. `revert`
+works offline and keeps the current data. To uninstall, use **Settings >
+Apps > Installed apps**; remove your data directory separately only if
+you no longer need its contents.
+
 ---
 
 ## Requirements

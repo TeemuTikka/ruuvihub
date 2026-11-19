@@ -1,5 +1,6 @@
 """Switch a prepared Windows release without reverting persistent data."""
 
+from collections.abc import Callable
 from contextlib import contextmanager
 import json
 import os
@@ -78,7 +79,9 @@ class Activation:
                 self.task.remove()
             raise
 
-    def switch(self, target: str, *, reverting: bool = False) -> None:
+    def switch(
+        self, target: str, *, reverting: bool = False, backup: Callable[[], None] | None = None,
+    ) -> None:
         source, previous = self.versions()
         if source is None or source == target:
             raise ValueError("no different installed release to select")
@@ -91,6 +94,8 @@ class Activation:
         self._record_switch(source, target, previous)
         try:
             self.task.stop()
+            if backup is not None:
+                backup()
             self.task.select(target)
             self.task.start()
             if not self.task.healthy(target):

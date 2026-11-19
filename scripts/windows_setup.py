@@ -1,10 +1,14 @@
 """Install a verified payload from Inno Setup or remove its startup task."""
 
 import argparse
+from contextlib import closing
+import json
+import os
 from pathlib import Path
 import shutil
+import sqlite3
 import subprocess
-from tempfile import TemporaryDirectory
+from tempfile import mkdtemp, TemporaryDirectory
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -12,6 +16,31 @@ from release_metadata import STABLE_VERSION, _version_parts
 from windows_activation import Activation, install_lock
 from windows_release import verify_installer
 from windows_task import UserTask, replace_durably
+
+
+def backup_data(data: Path) -> None:
+    snapshot = (data / "settings.local.json").read_bytes()
+    db_path = Path(json.loads(snapshot)["db_path"])
+    if not db_path.is_absolute():
+        raise ValueError("the database must use an absolute persistent path")
+    backups = data / "backups"
+    backups.mkdir(exist_ok=True)
+    directory = Path(mkdtemp(prefix="before-update-", dir=backups))
+    try:
+        settings = directory / "settings.local.json"
+        with settings.open("xb") as file:
+            file.write(snapshot)
+            file.flush()
+            os.fsync(file.fileno())
+        database = directory / "ruuvi_data.db"
+        with closing(sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True)) as source:
+            with closing(sqlite3.connect(database)) as destination:
+                source.backup(destination)
+        with database.open("r+b") as file:
+            os.fsync(file.fileno())
+    except BaseException:
+        shutil.rmtree(directory)
+        raise
 
 
 def install_payload(
@@ -47,7 +76,7 @@ def install_payload(
         if current is None:
             activation.first_start(version)
         else:
-            activation.switch(version)
+            activation.switch(version, backup=lambda: backup_data(data))
 
 
 def uninstall(base: Path, data: Path) -> None:
@@ -82,7 +111,7 @@ def main() -> None:
             )
         else:
             uninstall(args.base_dir.resolve(), args.data_dir.resolve())
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+    except (OSError, KeyError, ValueError, RuntimeError, sqlite3.Error, subprocess.SubprocessError) as error:
         parser.exit(1, f"RuuviHub setup: {error}\n")
 
 

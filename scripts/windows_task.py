@@ -40,7 +40,7 @@ switch ($env:RUUVI_TASK_OPERATION) {
     'select' {
         $action = New-ScheduledTaskAction -Execute $env:RUUVI_TASK_EXE `
             -Argument $env:RUUVI_TASK_ARGS -WorkingDirectory $env:RUUVI_TASK_DIR
-        $task[0] | Set-ScheduledTask -Action $action | Out-Null
+        Set-ScheduledTask -TaskName $name -TaskPath '\' -Action $action | Out-Null
     }
     'start' { $task[0] | Start-ScheduledTask }
     'running' { if ($task[0].State -eq 'Running') { 'yes' } }

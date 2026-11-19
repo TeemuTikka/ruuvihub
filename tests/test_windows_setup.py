@@ -32,8 +32,9 @@ def setup(tmp_path, monkeypatch):
             assert (base / "releases" / version / "runtime/python.exe").read_text() == "new Python"
             actions.append(("first", version))
 
-        def switch(self, version):
+        def switch(self, version, *, backup):
             assert (base / "releases" / version / "runtime/python.exe").read_text() == "new Python"
+            assert callable(backup)
             actions.append(("switch", version))
 
     controller = Controller()
@@ -47,6 +48,28 @@ def test_fresh_setup_publishes_payload_and_preserves_existing_data(setup):
     windows_setup.install_payload(payload, base, data, "v1.3.0", expected_current=None)
     assert actions == [("first", "v1.3.0")]
     assert (data / "settings.local.json").read_text() == "persisted settings"
+
+
+def test_backup_is_a_separate_sqlite_snapshot_including_wal(tmp_path):
+    from contextlib import closing
+    import json
+    import sqlite3
+
+    database = tmp_path / "custom readings.db"
+    settings = tmp_path / "settings.local.json"
+    settings.write_text(json.dumps({"db_path": str(database)}))
+    with closing(sqlite3.connect(database)) as connection:
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("CREATE TABLE readings (id INTEGER)")
+        connection.execute("INSERT INTO readings VALUES (1)")
+        connection.commit()
+        windows_setup.backup_data(tmp_path)
+        connection.execute("INSERT INTO readings VALUES (2)")
+        connection.commit()
+    backup, = (tmp_path / "backups").iterdir()
+    assert (backup / settings.name).read_bytes() == settings.read_bytes()
+    with closing(sqlite3.connect(backup / "ruuvi_data.db")) as snapshot:
+        assert snapshot.execute("SELECT id FROM readings").fetchall() == [(1,)]
 
 
 def test_controlled_update_refuses_stale_selection_then_installs_new_version(setup):

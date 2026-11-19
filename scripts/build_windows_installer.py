@@ -28,6 +28,7 @@ def build_installer(version: str, payload: Path, compiler: Path, output: Path, p
         staged = Path(directory) / "payload"
         shutil.copytree(payload, staged)
         shutil.copyfile(source / "windows_setup.py", staged / "setup.py")
+        shutil.copyfile(source / "windows_update.py", staged / "update.py")
         for module in _MODULES:
             shutil.copyfile(source / module, staged / "src" / module)
         (staged / "release-public.hex").write_text(key.hex() + "\n", encoding="ascii")

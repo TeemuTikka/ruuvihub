@@ -879,6 +879,10 @@ action on failure without restoring older persistent data.
 and embeds `RELEASE_SIGNING_PUBLIC_KEY`. The installer verifies its own
 signed metadata and file digest before calling `scripts/windows_setup.py`
 to publish the versioned payload and activate its task.
+The installed `ruuvihub-update.cmd` dispatches to the selected release's
+`update.py`. Setup rejects an update if another operation has already
+changed the selection, and takes a settings/SQLite backup with the app
+stopped. Revert does not contact GitHub.
 
 ```powershell
 python scripts\build_windows_installer.py v1.2.0 dist\ruuvihub-v1.2.0-windows-x64 --iscc C:\path\to\ISCC.exe
