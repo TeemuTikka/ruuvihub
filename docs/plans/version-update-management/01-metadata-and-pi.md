@@ -3,7 +3,8 @@
 Status: in progress. The dependency manifest, lock and hash-verified pip
 exports are complete. Ed25519 metadata signing and artifact verification are
 implemented in release tooling; live publication requires maintainer key
-provisioning. Updater integration and environment reuse remain.
+provisioning. Locked environment preparation and reuse are implemented
+separately from activation. Plan 03 integrates them into the managed updater.
 Depends on the relevant [contracts](00-contracts.md). Production activation
 and the existing-install transition are integrated once in plan 03.
 

@@ -794,6 +794,14 @@ Publishing also requires a protected signing environment. The workflow signs
 and verifies the release metadata and publishes it alongside the archive. See
 [release signing](docs/releases.md#release-signing) for setup.
 
+The managed Pi workflow will use `scripts/prepare_pi_venv.py` to prepare
+dependencies separately from activation. Run it as the service user with
+system Python, passing the environments directory and the release's runtime
+requirements file. It prints the ready environment's absolute path on stdout.
+It reuses environments only for matching lock and interpreter identities, and
+installs hash-verified wheels from the configured package index otherwise.
+It does not change release links or prune existing environments.
+
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
 `GITHUB_TOKEN`. Keep repo **Settings → Actions → General → Workflow
