@@ -1,65 +1,47 @@
-# 04 - Windows production installation and lifecycle
+# 04 - Windows installer and updates
 
-Status: not started. Depends on the Windows decisions in
-[00](00-contracts.md) and the shared engine contract in
-[03](03-updater-and-pi.md). Windows development/F5 remains supported
-without self-update.
+Status: not started. Windows remains in scope after the Pi updater foundation.
+Use Windows-specific installation/update behavior; share the release metadata
+and signature checks, not a cross-platform transaction engine. Development
+checkouts remain notification-only.
 
 ## Scope
 
-- Select and document a Windows installer and package for a machine-wide service;
-  do not assume Pi tarballs, Bash, systemd, symlink privileges or a local
-  Python installation. Use one application version while allowing different
-  artifact kinds and runtime strategies. Preserve license notices.
-- Build a production installer for clean install, service registration and
-  configuration, persistent data directory and ACL setup, upgrades, and
-  uninstall. Define service account,
-  elevation, writable persistent data location, ACLs, startup/restart,
-  log access, recovery command and clean-machine prerequisites. Keep
-  credentials, SQLite, logs and TLS material outside replaceable releases.
-  Explicitly determine whether/how uninstall retains operator data.
-- The operator downloads and runs the installer from
+- Initially support 64-bit Windows 11. Use Inno Setup and bundle the Python
+  runtime. Install the app and persistent data in separate locations; keep
+  the previous application version so an update does not overwrite it.
+- The operator downloads the installer from
   [RuuviHub GitHub Releases](https://github.com/TeemuTikka/ruuvihub/releases).
-  It uses HTTPS for initial retrieval and the embedded release public key to
-  verify signed metadata and check application artifacts against its
-  authenticated hashes; it is not an offline installer.
-- Build and validate a signed Windows installer/update artifact in Windows CI
-  from the same reviewed dependency inputs. Bundle the Python runtime; keep
-  prior application/runtime independently restorable. Do not mutate locked
-  running files. The shared command-line engine performs transaction handling;
-  a small platform implementation manages Windows-specific preparation,
-  activation, restart and restore.
-- Integrate a least-privilege control boundary, restricted request protocol
-  and independent recovery runtime. Gate installed-update capability on
-  validated artifact, account/ACL and persisted-data compatibility. Source
-  checkouts remain notification-only.
-- Use Windows service management to launch update/recovery independently of
-  the app, without introducing a second persistent updater daemon. Implement
-  the narrow command/authorization boundary from plan 03, not a parallel
-  Windows transaction engine or plugin framework.
-- Require online retrieval of signed Windows release artifacts for install
-  and update. Do not support sideloaded or offline update packages. Local
-  rollback to a retained application/runtime bundle remains available without
-  downloading another release.
-
-The installer is the production install experience. Decide whether updates
-invoke it in a controlled mode or activate a versioned installed bundle; an
-in-place installer must not destroy the last-known-good runtime. This is a
-packaging decision, not a reason to duplicate update transaction logic.
+  Installation and updates are online-only. Verify signed release metadata
+  and artifact hashes using the public key embedded in the installer.
+- Keep first install and later updates as separate entry points: the Inno
+  Setup installer is always available to download and install; a small
+  Windows updater handles later updates and invokes the installer in its
+  controlled update mode. Do not duplicate the Pi updater or share its
+  transaction implementation.
+- Test BLE scanning in the background service first. If it does not work,
+  use the whole app in the logged-in user session; scanning pauses at sign-out.
+  Choose and clearly identify one mode during setup. Do not add a separate
+  BLE helper process or switch modes silently.
+- Use the Windows updater to download and stage a new version, then
+  activate it only after verification and preparation. Keep the prior version
+  for revert. Preserve the database, settings, certificates and logs across
+  install, update and uninstall; explicitly ask before removing persistent data.
+- Release metadata signing authenticates app artifacts. Authenticode signing
+  of the Windows installer is separate and is not required initially, to avoid
+  making a paid certificate a prerequisite. Document any Windows warning
+  users may see.
+- Keep Windows-specific service, installer and activation code straightforward.
+  Do not implement the Pi updater's internals a second time as a shared
+  framework or add a permanent updater daemon.
 
 ## Acceptance
 
-- Test installer-driven clean install and uninstall, normal update, failed
-  preparation, failed restart,
-  wrong health version, automatic restoration, explicit manual revert,
-  repeated failure, interrupted activation/recovery, local rollback without
-  UI, pruning and uninstall/data retention.
-- Verify persisted data and certs survive; prove the restored bundle/runtime
-  works after a failed update and that no running-file or symlink assumptions
-  break activation. Validate ACL and request-boundary attacks.
-- Run CI lifecycle tests, a clean-machine installation smoke test, update
-  service connectivity-failure tests and representative real Windows BLE scanning
-  under the chosen service account. Failure to establish reliable BLE blocks
-  support; do not fall back silently to a user-session app.
-- Update Windows, developer, general and release documentation for actual
-  installation, lifecycle and recovery behavior.
+- On a clean Windows 11 machine, install, start RuuviHub, update, revert and
+  uninstall. Verify persistent data survives and the previous app remains
+  recoverable if preparation or startup fails.
+- Test signature/hash rejection before activation and ensure a failed update
+  does not alter current app files or persistent data.
+- Verify BLE under the service account. If it fails, verify the selected
+  user-session mode while logged in and document its sign-out behavior.
+- Update Windows, developer, general and release documentation.

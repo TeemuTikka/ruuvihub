@@ -1,84 +1,67 @@
 # RuuviHub release and update plans
 
-Status: reviewed planning only; implementation has not started. The split
-plans below record the current decisions and are temporary working documents
-on the feature branch; they will be removed before the pull request.
+Status: planning only; implementation has not started. These temporary
+working documents are on the feature branch and will be removed before the
+pull request.
+
+## Guiding constraint
+
+RuuviHub is public, but this update system is primarily for the owner's
+personal installations. Choose straightforward solutions that work for that
+setup; do not build a fleet product or general-purpose updater framework.
+Keep basic publisher verification, protect persistent data, and retain a
+simple recovery path.
 
 ## Plan map
 
-| Plan | Deliverable | Prerequisites |
-|---|---|---|
-| [00 - Contracts and decisions](00-contracts.md) | Supported targets, release, safety and lifecycle contracts; explicit bootstrap design | None |
-| [01 - Metadata and Pi environment reuse](01-metadata-and-pi.md) | uv lock/export, online dependency installation and environment preparation | Relevant decisions in 00 |
-| [02 - Release notifications](02-notifications.md) | Non-blocking, admin-visible release checks, including dev checkouts | Version/checking decisions in 00; artifact metadata from 01 only for artifact-specific compatibility |
-| [03 - External updater and Pi integration](03-updater-and-pi.md) | Durable, recoverable engine and independently managed Pi lifecycle | 00 and 01; not dependent on 02 |
-| [04 - Windows production lifecycle](04-windows.md) | Packaged install, update and rollback on Windows | 00 and shared engine contract from 03 |
-| [05 - Web update controls](05-web-controls.md) | Explicitly approved update/revert controls | 02, 03 and/or 04 per platform |
+| Plan | Purpose |
+|---|---|
+| [00 - Scope and basic contracts](00-contracts.md) | Record selected targets and simple safety rules |
+| [01 - Release metadata and Pi dependencies](01-metadata-and-pi.md) | Use one lock/export flow and prepare app dependencies |
+| [02 - Release notifications](02-notifications.md) | Show current/latest stable release without blocking the app |
+| [03 - Pi updater/bootstrap](03-updater-and-pi.md) | Implement the Pi updater and migrate existing installs |
+| [04 - Windows installer/updates](04-windows.md) | Implement Windows 11 installation and update behavior |
+| [05 - Web controls](05-web-controls.md) | Add admin-triggered actions after their platform paths work |
 
-Implement and validate each phase as a separately reviewable change. Phase
-02 can run in parallel with 01 once its own contracts are settled. Phase 05
-must expose controls only for a platform whose adapter is actually ready.
-Do not treat this plan as authorization to choose unresolved user-facing
-policies or to publish unsupported targets.
+## Implementation direction
 
-## Simplified implementation direction
+- Implement Pi first: Pi 3 Model B+ and Pi 5, 64-bit Raspberry Pi OS, latest
+  stable release and its system Python. Document what was actually used;
+  no broad compatibility matrix.
+- Use `uv.lock` and generated hash-verified pip requirements. Do not publish
+  Pi dependency bundles.
+- Use the official
+  [GitHub Releases](https://github.com/TeemuTikka/ruuvihub/releases) source
+  for online first install and updates. The first bootstrap relies on HTTPS
+  certificate validation and embeds the release public key. Signed metadata
+  authenticates artifact hashes for later releases.
+- Limit selection of a small established signing verifier to one day. Use
+  built-in expiry/replay protection only if straightforward; do not add custom
+  update infrastructure for it. Store the private key as a protected GitHub
+  Actions secret; handle key compromise through local operator recovery.
+  Release metadata signing is separate from Authenticode signing; a paid
+  Windows code-signing certificate is not an initial requirement.
+- Keep Pi updating small and operator-driven. Retain the previous app
+  version, not a configurable release history. Keep the downloadable Inno
+  Setup first installer available; use a separate small Windows updater for
+  later updates, invoking Inno Setup in controlled update mode. Share release
+  metadata and verification, not transaction machinery.
+- Test Windows BLE under the service account. If it does not work, use the
+  whole app in the logged-in user session; scanning pauses at sign-out. The
+  live developer-session scan already works, but service-mode BLE remains
+  unverified.
+- Keep the database/settings outside app release directories. Back up before
+  updating, but never automatically restore a backup over newer readings.
+  Permit app rollback only when it can safely use current data.
+- Add simple admin notifications. Add web update controls only after the
+  matching command or installer works reliably.
 
-- Deliver notifications independently first. Run focused feasibility checks
-  for Windows service-account BLE and Pi package-index dependency installation
-  before committing to their packaging implementation.
-- Build one external command-line updater, not a persistent updater daemon,
-  plugin framework or general-purpose installer. Share release validation,
-  preparation and transaction logic; keep platform-specific operations small.
-  Platform service management launches the command and recovery independently
-  of the web process. A CLI alone does not provide authorization or reboot
-  recovery: those remain explicit platform integration requirements.
-- Use a documented one-time operator bootstrap for existing Pi installations.
-  Do not make old scripts understand new metadata or coordinate two update
-  engines. After successful handoff, installed management entry points use
-  the new engine; retained legacy scripts are not supported active entry
-  points. Preserve the old working application/environment and local recovery.
-  The current released archive-install/update flow remains unchanged until
-  the online bootstrap and updater are shipped; this plan does not itself
-  remove functionality from existing installations.
-- Start with a persisted-data compatibility generation for settings and the
-  database, backed by forward/rollback tests. Do not build a release-pair
-  compatibility graph or automatic migration planner. Known legacy transitions
-  require a small reviewed mapping; incompatible generations require a separate
-  operator procedure.
-- Use an established signing format and verification implementation, not
-  custom cryptography. Choose the smallest trust design meeting the confirmed
-  signing, rotation and compromise-recovery requirements.
-- Execute plan 01 in separate milestones: uv lock/export, signed release
-  metadata, online package-index installation, then immutable environment
-  preparation. Wire activation and existing-install migration once, in plan
-  03, rather than implementing a temporary second update engine.
-- Deliver a real Windows installer as part of plan 04. It installs and
-  configures the machine-wide service and persistent data permissions; a
-  release archive alone is not a production installation experience.
-- First install uses a downloaded online bootstrap from
-  [RuuviHub GitHub Releases](https://github.com/TeemuTikka/ruuvihub/releases).
-  HTTPS certificate validation is the initial trust anchor; the bootstrap
-  contains the release public key used to verify signed metadata and checks
-  application artifacts against its authenticated hashes. This is not an
-  offline install path.
+## Validation
 
-Delivery sequence: notifications and feasibility checks; plan 01 milestones;
-Pi command-line updater and bootstrap; Windows installer and lifecycle; web
-controls per validated platform. No support targets or agreed safety
-guarantees are removed.
-
-## Implementation checks
-
-- The current Windows development environment has Docker available. Use a
-  Linux container for suitable Linux/Pi build and packaging checks, but do
-  not treat container results as proof of Raspberry Pi hardware, BLE or
-  systemd behavior. Run those checks directly on a Raspberry Pi later when
-  needed.
-- Run focused tests, then the hardware-free suite
-  `python -m pytest tests/ -q --ignore=tests/test_connection.py`. Report
-  missing platform or hardware evidence as a release blocker.
-- Review and update relevant READMEs and release documentation with each
-  implementation change. Preserve source-checkout/F5 workflows.
-- For changed shell scripts, verify LF endings and run `bash -n`.
-- Record unresolved decisions and actual platform coverage in the applicable
-  phase plan. No application code has been changed here.
+- Use Docker for suitable Linux builds and automated checks. Smoke-test on
+  available Pi hardware when practical; containers cannot verify real BLE or
+  systemd behavior.
+- Run focused tests and the hardware-free suite:
+  `python -m pytest tests/ -q --ignore=tests/test_connection.py`.
+- Update relevant READMEs with implementation changes and document the
+  actual OS/Python and Windows BLE mode tested.

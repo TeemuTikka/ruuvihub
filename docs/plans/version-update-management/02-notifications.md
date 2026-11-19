@@ -1,41 +1,26 @@
-# 02 - Release notification service
+# 02 - Release notifications
 
-Status: not started. Depends on the version and notification decisions in
-[00](00-contracts.md); installation is explicitly outside this phase.
+Status: not started. Can be implemented independently of installation using
+the version and source decisions in [00](00-contracts.md).
 
 ## Scope
 
-- Add a bounded background checker against the public GitHub Releases API:
-  startup and approximately daily checks with jitter, timeouts, conditional
-  requests, bounded retry/backoff, rate-limit and connectivity-failure
-  handling. No network call may block app startup, BLE scanning, upload or
-  backfill. Ensure task shutdown and cancellation are handled.
-- Compare stable releases with `packaging.version.Version` after separately
-  validating the release tag format. Ignore drafts, prereleases and malformed
-  releases; avoid accidental downgrades. Define behavior when latest release
-  metadata is missing, incomplete, withdrawn or not yet published.
-- Keep latest known release data distinct from last attempt/status and its
-  timestamp. A failed refresh must not present stale information as fresh.
-  Bound response size and validate external release-note URLs before rendering.
-- Persist an automatic-check setting enabled by default, with an
-  authenticated, CSRF-protected manual Check now independent of the automatic
-  setting. Prevent concurrent checks from multiplying requests. Show an
-  admin-only update banner and details with Check now in System settings.
-  Show signed-in admins current/latest versions, release notes, check
-  status/time and compatibility when it can be established; otherwise say
-  unknown rather than claim compatibility.
-- `dev` checkouts show release information but never self-install. No
-  installation control is introduced in this phase. Keep behavior available
-  if platform metadata or the updater is absent.
+- Check the public GitHub Releases API at startup and periodically, without
+  blocking app startup, BLE scanning, uploads or backfill. Include a manual
+  admin Check now action. A connectivity failure is shown as a check error
+  and does not affect the running app.
+- Show the current and latest stable version, release notes link, and last
+  check result in the admin UI. Ignore drafts and prereleases. Development
+  checkouts may see notifications but never install updates.
+- Keep the implementation small: use a timeout, avoid overlapping checks,
+  and display stale/failed status honestly. Do not build a general retry,
+  scheduling or release-channel framework.
+- Defer web install/update controls to [05](05-web-controls.md), after the
+  corresponding platform update path works.
 
 ## Acceptance
 
-- Test numeric ordering, strict tags, `dev`, prereleases, drafts, incomplete
-  and malformed responses, HTTP caching/304, timeouts, connectivity failures,
-  rate limits, backoff/jitter with a fake clock, manual/disabled checks and
-  duplicate requests. Ensure old data remains labeled stale after failure.
-- Test authentication/CSRF, safe link rendering, settings persistence,
-  independent task lifecycle and that network failure cannot delay or stop
-  scanning, uploads, backfill or startup.
-- Check relevant settings and developer guides and update the documentation
-  for user-visible behavior and defaults.
+- Test newer/current versions, drafts and prereleases, unavailable GitHub,
+  manual check and that network failure does not delay app startup or scanning.
+- Verify only admins see the notification and check action.
+- Update relevant settings and developer documentation.
