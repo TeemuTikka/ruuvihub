@@ -73,10 +73,12 @@ class PiActivation:
         link = path / "venv"
         shared = self.base / "shared"
         environment = link.resolve(strict=True)
+        legacy = shared / "legacy-venv"
+        uses_legacy = link.is_symlink() and link.readlink() == legacy and legacy.is_symlink()
         if (
             not link.is_symlink()
             or not (link / "bin/python3").is_file()
-            or not (environment == shared / "venv" or environment.is_relative_to(shared / "venvs"))
+            or not (uses_legacy or environment == shared / "venv" or environment.is_relative_to(shared / "venvs"))
         ):
             raise ValueError(f"release {version} has no prepared Python environment")
         return path

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import pwd
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -45,7 +46,9 @@ def _update_lock(base: Path):
 
 
 def _service_user(base: Path) -> str:
-    output = _systemctl("show", "-p", "User", "-p", "WorkingDirectory", "-p", "ExecStart", _UNIT)
+    output = _systemctl(
+        "show", "-p", "User", "-p", "WorkingDirectory", "-p", "ExecStart", "-p", "Environment", _UNIT,
+    )
     properties = dict(line.split("=", 1) for line in output.splitlines())
     python = base / "current/venv/bin/python3"
     main = base / "current/src/main.py"
@@ -54,6 +57,15 @@ def _service_user(base: Path) -> str:
         f"{{ path={python} ; argv[]={python} {main} ;"
     ) or command.count("argv[]=") != 1:
         raise ValueError("systemd is not configured for this managed installation; bootstrap it first")
+    settings = base / "shared/settings.local.json"
+    if settings.is_symlink():
+        settings = settings.readlink()
+    bindings = [
+        item.partition("=")[2] for item in shlex.split(properties.get("Environment", ""))
+        if item.startswith("SETTINGS_PATH=")
+    ]
+    if not settings.is_absolute() or bindings != [str(settings)]:
+        raise ValueError("systemd SETTINGS_PATH does not match the managed settings path")
     user = properties.get("User", "")
     if not user or pwd.getpwnam(user).pw_uid == 0:
         raise ValueError("the managed service must run as an unprivileged user")

@@ -132,6 +132,26 @@ def test_refuses_to_switch_to_an_unprepared_release(install):
     assert events == []
 
 
+def test_revert_uses_pinned_legacy_environment_outside_managed_root(install):
+    base, controller, selected, _, _ = install
+    release_link = base / f"releases/{CURRENT}/venv"
+    original = base.parent / "legacy/shared/venvs" / CURRENT
+    original.parent.mkdir(parents=True)
+    release_link.resolve().rename(original)
+    release_link.unlink()
+    release_link.symlink_to(original)
+    with pytest.raises(ValueError, match="no prepared Python environment"):
+        controller().versions()
+    binding = base / "shared/legacy-venv"
+    binding.symlink_to(original)
+    release_link.unlink()
+    release_link.symlink_to(binding)
+    controller().update(NEW, lambda: None)
+    controller().revert()
+    assert selected() == (CURRENT, CURRENT)
+    assert release_link.resolve() == original
+
+
 def test_both_unhealthy_releases_require_operator_recovery(install):
     _, controller, selected, _, unhealthy = install
     unhealthy.update({CURRENT, NEW})

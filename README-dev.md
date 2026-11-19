@@ -827,6 +827,10 @@ It expects root-controlled management files, an installed public key, and
 the managed systemd unit. `pi_update_data.py` runs backup and loopback
 health probes as the service user. The legacy installer does not install
 these commands; the managed bootstrap is still pending.
+For an existing installation, the managed layout can pin its original
+virtualenv through `shared/legacy-venv`. The service keeps using the original
+settings path; a link under the managed `shared/` directory lets the backup
+and health helpers read that same file without changing where the app saves it.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in

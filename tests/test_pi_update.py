@@ -48,7 +48,8 @@ def managed(tmp_path, monkeypatch):
             python = base / "current/venv/bin/python3"
             return (
                 f"User=nobody\nWorkingDirectory={base}/current\n"
-                f"ExecStart={{ path={python} ; argv[]={python} {base}/current/src/main.py ; }}"
+                f"ExecStart={{ path={python} ; argv[]={python} {base}/current/src/main.py ; }}\n"
+                f"Environment=SETTINGS_PATH={base}/shared/settings.local.json"
             )
         return "active" if command == "is-active" else ""
 
@@ -117,6 +118,20 @@ def test_cli_refuses_legacy_unit(tmp_path, monkeypatch):
     ))
     with pytest.raises(ValueError, match="bootstrap it first"):
         pi_update._service_user(tmp_path)
+
+
+def test_systemd_uses_original_settings_after_handoff(managed, monkeypatch):
+    base, _ = managed
+    settings = base / "shared/settings.local.json"
+    original = base.parent / "legacy install/shared/settings.local.json"
+    settings.symlink_to(original)
+    systemctl = pi_update._systemctl
+    with pytest.raises(ValueError, match="SETTINGS_PATH"):
+        pi_update._service_user(base)
+    monkeypatch.setattr(pi_update, "_systemctl", lambda *args: systemctl(*args).replace(
+        f"SETTINGS_PATH={settings}", f'"SETTINGS_PATH={original}"',
+    ))
+    assert pi_update._service_user(base) == "nobody"
 
 
 def test_update_obeys_lock_and_leaves_service_running_if_prepare_fails(managed, monkeypatch):
