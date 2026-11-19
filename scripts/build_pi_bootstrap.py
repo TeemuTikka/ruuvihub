@@ -7,7 +7,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 _MODULES = (
     "pi_activation.py", "pi_bootstrap.py", "pi_handoff.py", "pi_release.py", "pi_update.py",
-    "pi_update_data.py", "prepare_pi_venv.py", "release_metadata.py",
+    "pi_update_data.py", "prepare_pi_venv.py", "release_fetch.py", "release_metadata.py",
 )
 _ENTRY = """\
 import sys

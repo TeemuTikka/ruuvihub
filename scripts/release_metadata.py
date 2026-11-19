@@ -17,6 +17,11 @@ SIGNATURE_NAME = "release-metadata.json.sig"
 RELEASE_DOWNLOAD = "https://github.com/TeemuTikka/ruuvihub/releases/download"
 STABLE_VERSION = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 _MAX_METADATA_BYTES = 16 * 1024
+WINDOWS_PLATFORM = "windows-x64"
+
+
+def windows_installer_name(version: str) -> str:
+    return f"ruuvihub-{version}-windows-x64.exe"
 
 
 def _version_parts(value: str) -> tuple[int, ...]:
@@ -101,6 +106,14 @@ def sign_release(
     if artifact.name != f"ruuvihub-{version}.tar.gz":
         raise ValueError("unexpected Pi release archive name")
     artifact.verify_file(directory / artifact.name)
+    if WINDOWS_PLATFORM in json.loads(metadata)["artifacts"]:
+        installer = verify_metadata(
+            metadata, signature, public_key, expected_version=version,
+            updater_version=updater_version, platform=WINDOWS_PLATFORM,
+        )
+        if installer.name != windows_installer_name(version):
+            raise ValueError("unexpected Windows release installer name")
+        installer.verify_file(directory / installer.name)
     (directory / SIGNATURE_NAME).write_bytes(signature)
 
 

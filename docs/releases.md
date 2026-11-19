@@ -102,3 +102,9 @@ python scripts/build_release.py v1.1.0 --output-dir dist --minimum-updater-versi
 ```
 
 The local metadata alone is unsigned and must not be used to authenticate an update.
+
+The metadata builder can also cover a compiled Windows installer: run it
+with `--windows-installer` and the `ruuvihub-vX.Y.Z-windows-x64.exe` file.
+Keep the installer beside the metadata and Pi archive when signing; signing
+checks the exact bytes of both artifacts. The publishing workflow still
+only builds and publishes the Pi assets until Windows setup is wired in.

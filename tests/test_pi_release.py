@@ -13,6 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import pi_release
+import release_fetch
 from release_metadata import Artifact
 
 VERSION = "v1.1.0"
@@ -63,7 +64,7 @@ def release_assets(monkeypatch):
         assert asset == url.startswith("https://github.com/")
         return io.BytesIO(assets[url])
 
-    monkeypatch.setattr(pi_release, "_open", open_asset)
+    monkeypatch.setattr(release_fetch, "_open", open_asset)
     return assets, artifact, key.public_key()
 
 
@@ -123,7 +124,7 @@ def test_rejects_unsafe_entries_and_cleans_up(tmp_path, monkeypatch, path, kind)
     member = tarfile.TarInfo(f"ruuvihub-{VERSION}/{path}")
     member.type = kind
     malicious = _archive([member])
-    monkeypatch.setattr(pi_release, "_open", lambda *args, **kwargs: io.BytesIO(malicious))
+    monkeypatch.setattr(release_fetch, "_open", lambda *args, **kwargs: io.BytesIO(malicious))
     with pytest.raises(ValueError, match="unsafe entry"):
         pi_release.stage_pi_release(_asset(malicious), tmp_path)
     assert not list(tmp_path.iterdir())
@@ -135,7 +136,7 @@ def test_rejects_unsafe_entries_and_cleans_up(tmp_path, monkeypatch, path, kind)
 ])
 def test_staging_requires_complete_matching_release(tmp_path, monkeypatch, files):
     content = _archive(files=files)
-    monkeypatch.setattr(pi_release, "_open", lambda *args, **kwargs: io.BytesIO(content))
+    monkeypatch.setattr(release_fetch, "_open", lambda *args, **kwargs: io.BytesIO(content))
     with pytest.raises(ValueError, match="contents do not match"):
         pi_release.stage_pi_release(_asset(content), tmp_path)
     assert not list(tmp_path.iterdir())
@@ -149,13 +150,13 @@ def test_staging_requires_complete_matching_release(tmp_path, monkeypatch, files
 ])
 def test_rejects_unapproved_redirects(allowed, target):
     request = Request(_asset(b"archive").url)
-    policy = pi_release._ReleaseRedirects(allowed)
+    policy = release_fetch._ReleaseRedirects(allowed)
     with pytest.raises(ValueError, match="unexpected GitHub release redirect"):
         policy.redirect_request(request, None, 302, "", {}, target)
 
 
 def test_allows_github_asset_delivery_but_no_further_redirects():
-    policy = pi_release._ReleaseRedirects(True)
+    policy = release_fetch._ReleaseRedirects(True)
     request = Request(_asset(b"archive").url)
     target = "https://release-assets.githubusercontent.com/download"
     redirected = policy.redirect_request(request, None, 302, "", {}, target)

@@ -865,6 +865,9 @@ release's signature or attestation before supplying its SHA-256. The builder
 installs the locked wheel dependencies into the bundled interpreter and
 writes `dist\ruuvihub-v1.2.0-windows-x64`. The directory contains the app
 and runtime together; it is an installer input, not an installed app.
+`scripts/windows_release.py` can verify a local installer or stage the
+latest signed installer without executing it. It shares the approved-source
+download and signature verification code with Pi, not the activation logic.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in

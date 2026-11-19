@@ -20,7 +20,7 @@ from pi_update import _UNIT, _as_user, _healthy, _prepare, _require_trusted_path
 
 _TOOLS = (
     "pi_activation.py", "pi_release.py", "pi_update.py", "pi_update_data.py",
-    "prepare_pi_venv.py", "release_metadata.py", "release-public.hex",
+    "prepare_pi_venv.py", "release_fetch.py", "release_metadata.py", "release-public.hex",
 )
 
 

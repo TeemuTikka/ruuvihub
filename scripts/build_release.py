@@ -73,7 +73,15 @@ def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path("."))
     return archive_path
 
 
-def build_metadata(version: str, archive_path: Path, minimum_updater_version: str) -> bytes:
+def _describe_artifact(path: Path) -> dict:
+    with path.open("rb") as artifact:
+        return {"name": path.name, "size": os.fstat(artifact.fileno()).st_size,
+                "sha256": hashlib.file_digest(artifact, "sha256").hexdigest()}
+
+
+def build_metadata(
+    version: str, archive_path: Path, minimum_updater_version: str, *, windows_installer: Path | None = None,
+) -> bytes:
     """Create unsigned metadata for a locally built release archive."""
     if _VERSION.fullmatch(version) is None or _VERSION.fullmatch(minimum_updater_version) is None:
         raise ValueError("versions must be stable vX.Y.Z tags")
@@ -89,22 +97,17 @@ def build_metadata(version: str, archive_path: Path, minimum_updater_version: st
         if version_file is None or version_file.read() != f"{version}\n".encode("ascii"):
             raise ValueError("archive VERSION does not match the release version")
 
-    digest = hashlib.sha256()
-    size = 0
-    with archive_path.open("rb") as artifact:
-        while chunk := artifact.read(1024 * 1024):
-            size += len(chunk)
-            digest.update(chunk)
+    artifacts = {"linux-arm64": _describe_artifact(archive_path)}
+    if windows_installer is not None:
+        from release_metadata import WINDOWS_PLATFORM, windows_installer_name
+
+        if windows_installer.name != windows_installer_name(version):
+            raise ValueError("Windows installer name must match the release version")
+        artifacts[WINDOWS_PLATFORM] = _describe_artifact(windows_installer)
     metadata = {
         "version": version,
         "minimum_updater_version": minimum_updater_version,
-        "artifacts": {
-            "linux-arm64": {
-                "name": archive_path.name,
-                "size": size,
-                "sha256": digest.hexdigest(),
-            }
-        },
+        "artifacts": artifacts,
     }
     return (json.dumps(metadata, indent=2) + "\n").encode("utf-8")
 
@@ -113,13 +116,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("version", help="Stable release tag, e.g. v1.1.0")
     parser.add_argument("--output-dir", type=Path, default=Path("."))
+    parser.add_argument("--windows-installer", type=Path, help="Include this installer in the release metadata")
     parser.add_argument(
         "--minimum-updater-version",
         help="Also write release-metadata.json for this minimum updater version",
     )
     args = parser.parse_args()
+    if args.windows_installer and not args.minimum_updater_version:
+        parser.error("--windows-installer requires --minimum-updater-version")
     archive_path = build_archive(args.version, output_dir=args.output_dir)
     if args.minimum_updater_version:
-        metadata = build_metadata(args.version, archive_path, args.minimum_updater_version)
+        metadata = build_metadata(
+            args.version, archive_path, args.minimum_updater_version, windows_installer=args.windows_installer,
+        )
         (args.output_dir / "release-metadata.json").write_bytes(metadata)
     print(archive_path)
