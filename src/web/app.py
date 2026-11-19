@@ -15,6 +15,7 @@ app object, shared state, template/static mounting, and a health-check
 endpoint used by ``run_web_server``/tests to confirm the server started.
 """
 
+from contextlib import asynccontextmanager
 import logging
 import os
 from pathlib import Path
@@ -27,8 +28,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.gzip import GZipMiddleware
 
-from settings import SettingsStore
 from datetime_formats import format_timestamp
+from release_check import ReleaseCheck
+from settings import SettingsStore
 from storage import Storage
 from tls import ensure_self_signed_cert
 from uploader import Uploader
@@ -38,6 +40,7 @@ from web.config import router as config_router
 from web.dashboard import router as dashboard_router
 from web.dashboard_config import router as dashboard_config_router
 from web.logstream import LogStreamHandler, router as logstream_router
+from web.releases import router as releases_router
 from web.sensor import router as sensor_router
 
 _WEB_DIR = Path(__file__).parent
@@ -101,13 +104,26 @@ def create_app(
             Defaults to False so tests using plain ``TestClient`` (which
             talks HTTP) can still read the session cookie back.
     """
-    app = FastAPI(title="RuuviHub")
+    release_check = ReleaseCheck(get_version())
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        periodic_check = asyncio.create_task(release_check.run_periodically())
+        try:
+            yield
+        finally:
+            periodic_check.cancel()
+            await asyncio.gather(periodic_check, return_exceptions=True)
+            await release_check.close()
+
+    app = FastAPI(title="RuuviHub", lifespan=lifespan)
 
     # Stashed on app.state (not module globals) so route modules
     # registered elsewhere (auth, dashboard, sensor, config) can reach
     # the same shared instances via `request.app.state`.
     app.state.storage = storage
     app.state.settings_store = settings_store
+    app.state.release_check = release_check
     app.state.uploader = Uploader(settings_store)
     app.state.ble_lock = ble_lock if ble_lock is not None else asyncio.Lock()
     app.state.https_enabled = https_enabled
@@ -164,6 +180,7 @@ def create_app(
     app.include_router(sensor_router)
     app.include_router(config_router)
     app.include_router(dashboard_config_router)
+    app.include_router(releases_router)
     app.include_router(logstream_router)
 
     @app.get("/healthz")

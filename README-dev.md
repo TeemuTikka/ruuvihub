@@ -543,10 +543,16 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   remains readable but has no dashboard control.
   Metrics can all be deselected; new sensors remain visible when they
   arrive after a form was loaded. System saves do not change dashboard
-  preferences. The configuration pages share navigation between system
-  and dashboard settings.
+  preferences.
+- **`releases.py`** — admin-only `GET/POST /config/releases`. The POST
+  requires CSRF and starts a check without waiting on GitHub.
+  `src/release_check.py` checks the public latest-release API at app startup
+  and every 24 hours. HTTP requests run off the event loop with timeouts
+  and checks never overlap. The app keeps the last result in memory; on
+  failure, it marks any previously seen release as stale. No settings are
+  written and the web UI never installs releases.
 - **`templates/`** — `base.html` (shared layout + admin-only
-  "using default credentials" reminder, Settings menu linking directly to Dashboard settings and System settings, Logs toggle,
+  "using default credentials" reminder, Settings menu, Logs toggle,
   logout form, and slide-in `#log-panel` drawer; public pages show an
   admin login link instead). `login.html` hides the shared navigation.
   `base.html`'s `<head>` also has a small synchronous
@@ -558,8 +564,8 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   inline script right after the checkbox sets its initial `.checked`
   from that same `<html>` class (not a second `localStorage` read) so
   the two inline scripts can't disagree. `login.html`, `dashboard.html`,
-  `sensor.html`, `config.html`, `dashboard_config.html`, and their shared
-  `config_nav.html` navigation.
+  `sensor.html`, `config.html`, `dashboard_config.html`, `releases.html`,
+  and the admin pages' shared `config_nav.html` navigation.
 - **`static/`** — `style.css` (minimal, no framework; `--topbar-height`
   custom property sizes the sticky `.topbar` and is also used as
   `.log-panel`'s `top` offset so the drawer starts exactly below the

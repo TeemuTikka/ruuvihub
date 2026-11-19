@@ -1,7 +1,7 @@
 # 02 - Release notifications
 
-Status: not started. Can be implemented independently of installation using
-the version and source decisions in [00](00-contracts.md).
+Status: implemented independently of installation using the version and
+source decisions in [00](00-contracts.md).
 
 ## Scope
 

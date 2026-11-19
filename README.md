@@ -87,6 +87,7 @@ release-package install/update/rollback flow.
 | Sensor history | `/sensor/<mac>` | Public weather-style history for one tag: latest temperature/humidity/pressure and charts from now into the past, with 6/12/24/48/72-hour and 3/7/14/30/180/360-day windows (3 days by default). Dashboard cards open the selected hourly window. CSV exports include the raw readings, including battery voltage. |
 | System settings | `/config` | Admin login required. Change scanning, tag whitelist, retention, cloud upload, history backfill, friendly names, and your login/password. Most changes apply on the next scan/upload cycle — no restart needed. |
 | Dashboard settings | `/config/dashboard` | Admin login required. Select visible sensors and measurements, refresh interval, and storage information in the footer. Saves independently of system settings. |
+| Release status | `/config/releases` | Admin login required. See the installed and latest stable versions, release notes, and the last check result. **Check now** refreshes release information without installing anything. |
 
 Dashboard cards show current conditions, temperature low/high, and a small
 trend chart for the last **6 / 12 / 24 / 48 / 72 hours** (default **24 hours**).
