@@ -1,8 +1,7 @@
 # RuuviHub release and update plans
 
-Status: planning only; implementation has not started. These temporary
-working documents are on the feature branch and will be removed before the
-pull request.
+Status: implementation in progress. These temporary working documents are
+on the feature branch and will be removed before the pull request.
 
 ## Guiding constraint
 

@@ -15,10 +15,9 @@ project structure, key classes, and debugging guidance, see
 
 ## Requirements
 
-- Raspberry Pi 3, 4, or Zero W (built-in Bluetooth)
-  - Older models: USB Bluetooth 4.0+ adapter required
-- Raspberry Pi OS (Bullseye or newer), user `pi`
-- Python 3.10+
+- Raspberry Pi 3 Model B+ or Raspberry Pi 5 with 64-bit Raspberry Pi OS
+  (latest stable release), user `pi`
+- Python 3.11+
 - Internet access on the Pi (for `apt-get`/`pip install` during
   install/update — the release archive itself is transferred manually)
 - RuuviTag sensor(s) in range

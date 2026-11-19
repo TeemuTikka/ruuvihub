@@ -17,14 +17,13 @@ that contains `src/`, `tests/`, and `requirements.txt`.
 
 1. Read the task and agree on what a finished change should do. For a
    GitHub issue, use its description and acceptance criteria as the scope.
-2. Create and activate a virtual environment, then install both runtime
-   and test dependencies:
+2. Create and activate a virtual environment, then install the test
+   requirements. This file includes both runtime and test dependencies:
 
    ```bash
    python -m venv .venv
    # Windows PowerShell: .venv\Scripts\Activate.ps1
    # macOS/Linux:        source .venv/bin/activate
-   python -m pip install -r requirements.txt
    python -m pip install -r tests/requirements.txt
    ```
 
@@ -40,6 +39,19 @@ that contains `src/`, `tests/`, and `requirements.txt`.
    result. Run `python -m pytest tests/test_connection.py -q` only when a
    Bluetooth adapter and a RuuviTag are available; that test uses real
    hardware.
+
+`pyproject.toml` is the dependency source of truth and `uv.lock` pins the
+resolved versions. `requirements.txt` and `tests/requirements.txt` are
+generated, hash-verified exports for pip-based installs. Install the pinned
+uv version and regenerate them from the repository root after changing
+dependencies:
+
+```bash
+python -m pip install uv==0.13.9
+python -m uv lock
+python -m uv export --locked --no-emit-project --no-default-groups --no-dev -o requirements.txt
+python -m uv export --locked --no-emit-project --no-default-groups --group test -o tests/requirements.txt
+```
 
 For Windows-specific setup and troubleshooting, see
 [README-windows.md](README-windows.md). For how the application is put
@@ -729,7 +741,6 @@ a Pi) or to reproduce a Linux-only bug without a second machine:
 docker run --rm -it -v "${PWD}:/app" -w /app python:3.12-slim bash
 # inside the container:
 apt-get update && apt-get install -y build-essential libglib2.0-dev
-pip install -r requirements.txt
 pip install -r tests/requirements.txt
 python -m pytest tests/ -q --ignore=tests/test_connection.py
 ```
@@ -756,7 +767,7 @@ versioning, packaging, and code scanning (see
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | Main pushes, pull requests to `main`, or manual dispatch | Runs the hardware-free tests on Ubuntu and Windows with Python 3.11. Doesn't tag or publish anything. |
+| `ci.yml` | Main pushes, pull requests to `main`, or manual dispatch | Checks the dependency lock and generated pip exports, then runs the hardware-free tests on Ubuntu and Windows with Python 3.11. Doesn't tag or publish anything. |
 | `autotag.yml` | Push to `main`, when `AUTO_RELEASE_ENABLED` is `true` | Re-runs tests, selects the next stable patch tag with `scripts/next_release_tag.py`, pushes it, and directly invokes `release.yml`. The minimum version is `v1.1.0`; normal patch bumps follow it. A concurrency group serializes runs; commits that are no longer the tip of `main` or already have a stable release tag are skipped. |
 | `release.yml` | Push of a `v*` tag, or invoked by `autotag.yml` | Re-runs tests, builds the archive with `scripts/build_release.py`, and publishes it as a GitHub Release. Version input must be a stable `vX.Y.Z` tag. The archive includes source, scripts, bootstrap config, runtime requirements, `README-pi.md`, a generated `VERSION`, the hardware check as `scripts/test_connection.py`, and third-party license notices. Root `LICENSE` and `SECURITY.md` are required inputs. Local runtime state and bytecode are excluded; private files nested inside packaged folders fail the build. |
 | `codeql.yml` | Push/PR to `main`, weekly, or manual | Scans Python and JavaScript once the repository is public. Skips while private on the current plan. |
@@ -788,9 +799,9 @@ Only the tagging and publishing jobs request `contents: write`; test jobs
 remain read-only. The reusable release workflow receives no inherited
 repository secrets. External Actions are pinned to commit hashes.
 
-`.github/dependabot.yml` schedules weekly Python and Actions updates. Python
-updates across the root and test requirements are grouped together, and
-GitHub Actions updates are grouped together in a separate PR. Enable Dependabot
+`.github/dependabot.yml` schedules weekly Python and Actions updates.
+Python dependency updates are grouped together, and GitHub Actions updates
+are grouped together in a separate PR. Enable Dependabot
 alerts/security updates in repository settings. After making
 the repository public, enable secret scanning, push protection, and GitHub
 private vulnerability reporting (the route chosen in [SECURITY.md](SECURITY.md)).

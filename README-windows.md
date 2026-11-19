@@ -9,8 +9,8 @@ structure, key classes, and debugging guidance, see
 
 ## Requirements
 
-- Windows 10 / 11
-- Python 3.10+ ([python.org](https://www.python.org/downloads/))
+- 64-bit Windows 11
+- Python 3.11+ ([python.org](https://www.python.org/downloads/))
 - Bluetooth LE support: a built-in adapter, or a USB Bluetooth 4.0+
   adapter (e.g. ASUS USB-BT500), with Bluetooth turned on in Windows
   Settings

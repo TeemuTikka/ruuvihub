@@ -280,6 +280,8 @@ ruuviHub/
 ├── config.json          # First-run bootstrap template (tracked in git)
 ├── settings.local.json  # Live runtime settings (git-ignored, auto-created)
 ├── certs/               # Self-signed TLS cert/key (git-ignored, auto-created)
+├── pyproject.toml       # Runtime and test dependency declarations
+├── uv.lock              # Locked Python dependency versions
 ├── requirements.txt
 ├── README.md
 ├── README-windows.md

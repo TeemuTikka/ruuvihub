@@ -1,8 +1,9 @@
 # 01 - Release metadata and Pi environment reuse
 
-Status: not started. Depends on the relevant [contracts](00-contracts.md).
-Prepare release inputs and reusable environments. Production activation and
-the existing-install transition are integrated once in plan 03.
+Status: in progress. The dependency manifest, lock and hash-verified pip
+exports are complete. Release metadata and environment reuse remain.
+Depends on the relevant [contracts](00-contracts.md). Production activation
+and the existing-install transition are integrated once in plan 03.
 
 ## Milestones
 
