@@ -1,8 +1,9 @@
 # 03 - Pi updater and existing-install bootstrap
 
-Status: not started. Depends on the basic release and dependency decisions in
-[00](00-contracts.md) and [01](01-metadata-and-pi.md). Implement and validate
-the Pi workflow first; this is not a shared cross-platform updater engine.
+Status: in progress. Verified release download and archive staging are
+implemented in `scripts/pi_release.py`. The operator command, activation,
+bootstrap and persisted-data compatibility checks are pending. Depends on
+[00](00-contracts.md) and [01](01-metadata-and-pi.md).
 
 ## Pi updater
 

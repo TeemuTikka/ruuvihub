@@ -78,6 +78,12 @@ name, byte size and SHA-256 hash. Verification takes a trusted public key, not
 one downloaded from the same GitHub release. The existing Pi installer and
 updater do not consume these signatures yet.
 
+The managed Pi staging helper requests metadata and artifacts from the
+project's GitHub Releases URLs and accepts asset redirects only to GitHub's
+`release-assets.githubusercontent.com` host over HTTPS. Pi archives must
+contain regular files under `ruuvihub-vX.Y.Z/` and an exact `VERSION`
+matching the signed tag.
+
 To build locally without a signing key:
 
 ```bash

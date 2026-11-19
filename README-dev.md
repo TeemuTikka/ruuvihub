@@ -808,6 +808,12 @@ It reuses environments only for matching lock and interpreter identities, and
 installs hash-verified wheels from the configured package index otherwise.
 It does not change release links or prune existing environments.
 
+`scripts/pi_release.py` is the managed Pi updater's staging helper. It checks
+the latest stable GitHub release against the caller's trusted Ed25519 public
+key, downloads and verifies the selected archive, and extracts only regular
+files into a fresh staging directory. It does not activate the release or
+modify persistent data.
+
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
 `GITHUB_TOKEN`. Keep repo **Settings → Actions → General → Workflow
