@@ -814,6 +814,13 @@ key, downloads and verifies the selected archive, and extracts only regular
 files into a fresh staging directory. It does not activate the release or
 modify persistent data.
 
+`scripts/pi_activation.py` is the Linux-only selection helper. The caller
+must hold the updater lock and prepare a durable release before calling it.
+The helper records the switch, stops the service, runs the update backup
+callback, and atomically replaces `current`. It confirms startup via the
+caller's health check and attempts to restore the prior selection on failure.
+It never restores an older database or settings backup.
+
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
 `GITHUB_TOKEN`. Keep repo **Settings → Actions → General → Workflow

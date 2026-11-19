@@ -1,9 +1,10 @@
 # 03 - Pi updater and existing-install bootstrap
 
-Status: in progress. Verified release download and archive staging are
-implemented in `scripts/pi_release.py`. The operator command, activation,
-bootstrap and persisted-data compatibility checks are pending. Depends on
-[00](00-contracts.md) and [01](01-metadata-and-pi.md).
+Status: in progress. Verified release download and staging are implemented
+in `scripts/pi_release.py`. Atomic selection and revert are implemented
+in `scripts/pi_activation.py`. Wiring the operator command, systemd and
+backup callbacks, bootstrap, pruning, and persisted-data compatibility
+checks remain. Depends on [00](00-contracts.md) and [01](01-metadata-and-pi.md).
 
 ## Pi updater
 
