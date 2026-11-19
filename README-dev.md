@@ -826,7 +826,8 @@ It never restores an older database or settings backup.
 It expects root-controlled management files, an installed public key, and
 the managed systemd unit. `pi_update_data.py` runs backup and loopback
 health probes as the service user. The legacy installer does not install
-these commands; the managed bootstrap is still pending.
+these commands; `scripts/pi_bootstrap.py` installs them from the published
+`ruuvihub-pi-bootstrap.pyz` bundle.
 For an existing installation, the managed layout can pin its original
 virtualenv through `shared/legacy-venv`. The service keeps using the original
 settings path; a link under the managed `shared/` directory lets the backup
@@ -834,6 +835,10 @@ and health helpers read that same file without changing where the app saves it.
 `scripts/pi_handoff.py` provides the systemd part of that transition: it
 writes an override for the prepared layout and removes it if the managed
 service cannot start and report the existing version.
+Bootstrap snapshots the deployed app as the legacy service user, then
+extracts only validated regular files into the root-controlled layout. The
+build script `scripts/build_pi_bootstrap.py` embeds the release public key,
+not the signing key.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in

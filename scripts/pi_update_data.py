@@ -3,11 +3,13 @@
 import json
 import os
 from pathlib import Path
+import resource
 import shutil
 import sqlite3
 import ssl
 import subprocess
 import sys
+import tarfile
 from tempfile import mkdtemp
 from urllib.request import build_opener, HTTPRedirectHandler, HTTPSHandler, ProxyHandler
 
@@ -57,6 +59,36 @@ def backup(base: Path) -> Path:
     return directory
 
 
+def snapshot_release(release: Path, version: str) -> None:
+    """Stream only app files, with no privileged reads of the legacy tree."""
+    limit = 64 * 1024 * 1024
+    resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+    src = release / "src"
+    if src.is_symlink() or not src.is_dir():
+        raise ValueError("the legacy release must contain a real src directory")
+    with tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz", dereference=True) as archive:
+        paths = [release / "VERSION", release / "requirements.txt", *sorted(src.rglob("*"))]
+        for path in paths:
+            parts = path.relative_to(release).parts
+            if "__pycache__" in parts or path.suffix in {".pyc", ".pyo"}:
+                continue
+            if path.is_symlink() or not (path.is_dir() or path.is_file()):
+                raise ValueError(f"unsupported entry in the legacy app: {path.name}")
+            if path.is_file():
+                archive.add(path, f"ruuvihub-{version}/{'/'.join(parts)}", recursive=False)
+
+
+def check_settings(path: Path) -> None:
+    settings = json.loads(path.read_bytes())
+    paths = ["db_path", "log_path"]
+    if settings.get("https_enabled", True):
+        paths.extend(("tls_cert_path", "tls_key_path"))
+    for field in paths:
+        value = settings.get(field)
+        if not isinstance(value, str) or not Path(value).is_absolute():
+            raise ValueError(f"set a persistent absolute {field} before bootstrapping")
+
+
 if __name__ == "__main__":
     if os.geteuid() == 0:
         sys.exit("run the data helper as the service user")
@@ -66,7 +98,11 @@ if __name__ == "__main__":
             print(backup(Path(path)))
         elif command == "health":
             sys.exit(0 if healthy(Path(path), *args) else 1)
+        elif command == "snapshot-release":
+            snapshot_release(Path(path), *args)
+        elif command == "check-settings":
+            check_settings(Path(path))
         else:
             sys.exit("unknown data command")
     except (OSError, ValueError, KeyError, sqlite3.Error, subprocess.SubprocessError) as error:
-        sys.exit(str(error) if command == "backup" else 1)
+        sys.exit(1 if command == "health" else str(error))

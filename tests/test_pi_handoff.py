@@ -31,8 +31,9 @@ def test_handoff_preserves_legacy_unit_and_checks_same_version(unit, monkeypatch
     base, units, legacy, override, calls = unit
     before = legacy.read_bytes()
 
-    def healthy(path, user, version):
+    def healthy(path, user, version, *, tools):
         assert (path, user, version) == (base, "nobody", "v1.2.3")
+        assert tools == base / "tools"
         calls.append(("health", override.is_file()))
         return True
 
@@ -49,7 +50,7 @@ def test_handoff_preserves_legacy_unit_and_checks_same_version(unit, monkeypatch
 def test_unhealthy_managed_service_recovers_original_unit(unit, monkeypatch):
     base, units, legacy, override, calls = unit
     before = legacy.read_bytes()
-    monkeypatch.setattr(pi_handoff, "_healthy", lambda *args: not override.exists())
+    monkeypatch.setattr(pi_handoff, "_healthy", lambda *args, **kwargs: not override.exists())
     with pytest.raises(RuntimeError, match="restored the original unit"):
         pi_handoff.handoff(base, "nobody", "v1.2.3", units)
     assert not override.exists()
@@ -61,7 +62,7 @@ def test_handoff_never_overwrites_an_existing_override(unit, monkeypatch):
     base, units, _, override, calls = unit
     override.parent.mkdir()
     override.write_text("existing")
-    monkeypatch.setattr(pi_handoff, "_healthy", lambda *args: True)
+    monkeypatch.setattr(pi_handoff, "_healthy", lambda *args, **kwargs: True)
     with pytest.raises(FileExistsError):
         pi_handoff.handoff(base, "nobody", "v1.2.3", units)
     assert override.read_text() == "existing"

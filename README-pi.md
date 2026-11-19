@@ -155,8 +155,47 @@ Connection test PASSED.
 
 ## 5. Updating
 
-The commands below are for current Pi installations. The new signed-release
-updater is not installed by `install.sh`; managed bootstrap is not yet available.
+### Switch an existing install to the signed updater
+
+On a release that provides `ruuvihub-pi-bootstrap.pyz`, download that
+asset directly from the [RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases).
+The bootstrap contains the updater's trusted public key. Use the project
+page over HTTPS, not a mirrored bootstrap or a separately downloaded key.
+
+On the Pi, make sure no legacy install, update, rollback, or uninstall
+command is running. Do not start one during or after the handoff. The
+legacy service must be healthy on a stable `vX.Y.Z` release with absolute
+database and log paths in `shared/settings.local.json` (and absolute TLS
+certificate and key paths when HTTPS is enabled).
+
+```bash
+sudo apt install python3-cryptography
+sudo /usr/bin/python3 -I ./ruuvihub-pi-bootstrap.pyz
+```
+
+For a nondefault legacy installation, pass `--legacy-base /absolute/path`.
+The bootstrap verifies the signed release channel, stages the same installed
+app under `/opt/ruuvihub`, and switches systemd to it. The original settings,
+database, logs, TLS files, and Python environment stay in place. Do not
+delete the legacy directory. If the restart fails, the bootstrap removes its
+systemd override and attempts to restart the original service. It leaves the
+prepared directory for inspection rather than replacing it on a retry.
+
+Run the first application update separately:
+
+```bash
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py status
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py update
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py revert
+```
+
+Use `revert` only to select the previous version after an update. Revert
+works offline and does not restore an older database or settings file.
+
+### Legacy archive updates
+
+These commands are only for installations that have not switched to the
+signed updater.
 
 When a new release is published, transfer the new archive to the Pi the
 same way as step 1, then run:

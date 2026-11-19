@@ -78,11 +78,12 @@ def _as_user(user: str, *args: Path | str, timeout: int = 600) -> str:
     ).strip()
 
 
-def _healthy(base: Path, user: str, version: str) -> bool:
+def _healthy(base: Path, user: str, version: str, *, tools: Path | None = None) -> bool:
+    tools = _TOOLS if tools is None else tools
     for _ in range(10):
         try:
             if _systemctl("is-active", _UNIT, timeout=4) == "active":
-                _as_user(user, _TOOLS / "pi_update_data.py", "health", base, version, timeout=4)
+                _as_user(user, tools / "pi_update_data.py", "health", base, version, timeout=4)
                 return True
         except (OSError, subprocess.SubprocessError):
             pass
@@ -177,6 +178,7 @@ def main() -> None:
     try:
         if os.geteuid() != 0:
             parser.error("run a managed command with sudo")
+        os.umask(0o022)
         manage(args.base_dir.absolute(), args.command)
     except (OSError, KeyError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         if isinstance(error, subprocess.CalledProcessError) and error.output:

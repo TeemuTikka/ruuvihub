@@ -19,7 +19,10 @@ def handoff(base: Path, user: str, version: str, system_units: Path = Path("/etc
     current = base / "current"
     python = current / "venv/bin/python3"
     main = current / "src/main.py"
-    if not _healthy(base, user, version):
+    def healthy():
+        return _healthy(base, user, version, tools=base / "tools")
+
+    if not healthy():
         raise RuntimeError(f"the original service is not healthy at {version}; handoff not attempted")
 
     _require_trusted_path(system_units)
@@ -48,7 +51,7 @@ def handoff(base: Path, user: str, version: str, system_units: Path = Path("/etc
         if _service_user(base) != user:
             raise RuntimeError("the override did not preserve the service user")
         _systemctl("restart", _UNIT)
-        if not _healthy(base, user, version):
+        if not healthy():
             raise RuntimeError(f"the managed service did not become healthy at {version}")
     except (KeyError, OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as error:
         if not installed:
@@ -58,7 +61,7 @@ def handoff(base: Path, user: str, version: str, system_units: Path = Path("/etc
             _sync_directory(directory)
             _systemctl("daemon-reload")
             _systemctl("restart", _UNIT)
-            if not _healthy(base, user, version):
+            if not healthy():
                 raise RuntimeError("the restored legacy service is not healthy")
         except (OSError, RuntimeError, subprocess.SubprocessError) as restoration_error:
             raise RuntimeError(

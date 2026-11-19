@@ -87,7 +87,7 @@ def latest_pi_artifact(public_key: Ed25519PublicKey) -> Artifact:
     return artifact
 
 
-def _extract(archive_path: Path, destination: Path, version: str) -> None:
+def _extract(archive_path: Path, destination: Path, version: str, *, required=_REQUIRED) -> None:
     names = set()
     total_size = 0
     with tarfile.open(archive_path, "r:gz") as archive:
@@ -111,7 +111,7 @@ def _extract(archive_path: Path, destination: Path, version: str) -> None:
             with archive.extractfile(member) as source, target.open("xb") as output:
                 shutil.copyfileobj(source, output, length=_CHUNK_SIZE)
             target.chmod(0o644 | (member.mode & 0o111))
-    if not _REQUIRED <= names or (destination / "VERSION").read_bytes() != f"{version}\n".encode("ascii"):
+    if not required <= names or (destination / "VERSION").read_bytes() != f"{version}\n".encode("ascii"):
         raise ValueError("Pi release contents do not match the selected release")
 
 

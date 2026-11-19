@@ -82,10 +82,18 @@ jobs:
           RELEASE_SIGNING_PUBLIC_KEY: ${{ vars.RELEASE_SIGNING_PUBLIC_KEY }}
         run: python scripts/release_metadata.py dist "$VERSION" "$UPDATER_VERSION"
 
+      - name: Package Pi bootstrap
+        env:
+          RELEASE_SIGNING_PUBLIC_KEY: ${{ vars.RELEASE_SIGNING_PUBLIC_KEY }}
+        run: |
+          python scripts/build_pi_bootstrap.py dist/ruuvihub-pi-bootstrap.pyz
+          python -I dist/ruuvihub-pi-bootstrap.pyz --help
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "$VERSION" --generate-notes \
-            "$ARCHIVE_PATH" dist/release-metadata.json dist/release-metadata.json.sig
+            "$ARCHIVE_PATH" dist/release-metadata.json dist/release-metadata.json.sig \
+            dist/ruuvihub-pi-bootstrap.pyz

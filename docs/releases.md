@@ -70,9 +70,12 @@ access to the environment only to trusted release maintainers and workflows.
 
 The workflow signs the exact bytes of `release-metadata.json`, verifies the
 signature against the configured public key, and checks the archive against the
-metadata. GitHub CLI uploads the archive, JSON and detached
-`release-metadata.json.sig` to a draft before publishing. Missing or mismatched
-keys stop publication. If uploading fails, inspect the draft before retrying.
+metadata. GitHub CLI uploads the archive, JSON, detached
+`release-metadata.json.sig`, and `ruuvihub-pi-bootstrap.pyz` to a draft before
+publishing. The bootstrap includes the same public key and is initially
+trusted via download from the project's GitHub release over validated HTTPS.
+Missing or mismatched keys stop publication. If uploading fails, inspect the
+draft before retrying.
 The metadata records the version, minimum updater version, platform artifact
 name, byte size and SHA-256 hash. Verification takes a trusted public key, not
 one downloaded from the same GitHub release. The existing Pi installer and
