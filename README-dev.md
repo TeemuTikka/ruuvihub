@@ -790,9 +790,9 @@ does not publish a release. Automatic main releases remain off until the
 repository Actions variable `AUTO_RELEASE_ENABLED` is set to `true`.
 For a fresh repository, finish security settings and CI, manually tag the
 reviewed initial commit as `v1.1.0`, then enable automatic patch releases.
-The builder also supports preliminary unsigned release metadata; see
-[release maintenance](docs/releases.md). It is not published or used for
-update authentication yet.
+Publishing also requires a protected signing environment. The workflow signs
+and verifies the release metadata and publishes it alongside the archive. See
+[release signing](docs/releases.md#release-signing) for setup.
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
@@ -800,7 +800,8 @@ update authentication yet.
 permissions** at read-only, with Actions approval of pull requests disabled.
 Only the tagging and publishing jobs request `contents: write`; test jobs
 remain read-only. The reusable release workflow receives no inherited
-repository secrets. External Actions are pinned to commit hashes.
+repository secrets; the signing secret is scoped to the publishing job's
+environment. External Actions are pinned to commit hashes.
 
 `.github/dependabot.yml` schedules weekly Python and Actions updates.
 Python dependency updates are grouped together, and GitHub Actions updates

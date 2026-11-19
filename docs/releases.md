@@ -28,6 +28,7 @@ to keep personal contact addresses out of public Git metadata.
    `LICENSE`, `SECURITY.md`, the bootstrap configuration, and complete
    third-party notices must accompany the application. The builder rejects
    private runtime files inside packaged folders.
+   Configure the [release signing environment](#release-signing) before tagging.
 5. Tag the reviewed initial `main` commit and push only that tag:
 
    ```bash
@@ -56,12 +57,31 @@ Source checkouts report `dev`; CI-generated archives contain a `VERSION`
 file with their tag. The live hardware test `tests/test_connection.py`
 remains excluded from the normal CI suite.
 
-The local release builder can also generate a preliminary metadata file:
+## Release signing
+
+The publishing workflow uses a protected GitHub Actions environment named
+`release-signing`. Restrict it to trusted release branches and tags (including
+`main` for automatic patch releases). Store the raw 32-byte Ed25519 private key,
+hex-encoded, as the environment secret `RELEASE_SIGNING_PRIVATE_KEY`. Store the
+matching raw 32-byte public key, also hex-encoded, as the environment variable
+`RELEASE_SIGNING_PUBLIC_KEY`. Generate the pair on a trusted maintainer machine
+and keep the private key out of the checkout, terminal history, and logs. Grant
+access to the environment only to trusted release maintainers and workflows.
+
+The workflow signs the exact bytes of `release-metadata.json`, verifies the
+signature against the configured public key, and checks the archive against the
+metadata. GitHub CLI uploads the archive, JSON and detached
+`release-metadata.json.sig` to a draft before publishing. Missing or mismatched
+keys stop publication. If uploading fails, inspect the draft before retrying.
+The metadata records the version, minimum updater version, platform artifact
+name, byte size and SHA-256 hash. Verification takes a trusted public key, not
+one downloaded from the same GitHub release. The existing Pi installer and
+updater do not consume these signatures yet.
+
+To build locally without a signing key:
 
 ```bash
 python scripts/build_release.py v1.1.0 --output-dir dist --minimum-updater-version v1.0.0
 ```
 
-`release-metadata.json` records the release version, minimum updater version,
-archive name, byte size and SHA-256 hash. This file is currently **unsigned**,
-is not published by CI, and must not be used to authenticate an update.
+The local metadata alone is unsigned and must not be used to authenticate an update.

@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", type=Path, default=Path("."))
     parser.add_argument(
         "--minimum-updater-version",
-        help="Also write unsigned release-metadata.json for this minimum updater version",
+        help="Also write release-metadata.json for this minimum updater version",
     )
     args = parser.parse_args()
     archive_path = build_archive(args.version, output_dir=args.output_dir)

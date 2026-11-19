@@ -34,6 +34,9 @@ Releases are built automatically from git tags and published at
 **https://github.com/TeemuTikka/ruuvihub/releases**. Grab the latest
 `ruuvihub-vX.Y.Z.tar.gz` asset.
 
+New releases also include signed artifact metadata. The existing
+`install.sh` and `update.sh` do not yet verify it.
+
 Archives also include the project's MIT `LICENSE`, the `SECURITY.md` policy,
 `THIRD_PARTY_NOTICES.md`, and `third_party_licenses/`. Keep these with the
 installed release. The public release series starts at `v1.1.0`.
