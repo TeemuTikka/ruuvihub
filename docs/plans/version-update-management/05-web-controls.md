@@ -14,6 +14,9 @@ updater/adapter from [03](03-updater-and-pi.md) and/or
   installation. Reject normal updates to older or same versions and block
   installation when the trusted key is known to be revoked. Do not provide
   an unsigned-package override through the web interface.
+- Web installation requires connectivity to the approved source in
+  [00](00-contracts.md); show a clear unavailable/error state when it cannot be
+  reached. Do not offer a local archive or offline-install fallback.
 - Add signed-in admin, CSRF-protected update and revert actions. Display
   release identity, compatibility and update consequences before explicit
   confirmation; never submit arbitrary URLs, paths or shell commands.
@@ -36,8 +39,8 @@ updater/adapter from [03](03-updater-and-pi.md) and/or
 
 - Test authentication, CSRF, explicit confirmation, stale or incompatible
   target rejection, signature/revocation and downgrade gating, forged request
-  fields, repeated clicks and concurrent
-  clients. Confirm the updater repeats all security and compatibility checks.
+  fields, repeated clicks and concurrent clients. Confirm the updater repeats
+  all security and compatibility checks.
 - Simulate browser disconnect/reload, app restart, updater unavailability,
   preparation failure, successful activation, automatic rollback, manual
   revert and failed restoration. Ensure UI never reports failed restoration
@@ -45,4 +48,4 @@ updater/adapter from [03](03-updater-and-pi.md) and/or
 - End-to-end test each supported platform with real adapter/lock/journal;
   test development and unsupported targets never offer installation.
 - Update general, platform and developer documentation with operation,
-  recovery, checksums-versus-authentication limitations and offline behavior.
+  recovery, signature requirements and online-service failure behavior.

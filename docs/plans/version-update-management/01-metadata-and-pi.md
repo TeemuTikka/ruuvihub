@@ -6,11 +6,13 @@ the existing-install transition are integrated once in plan 03.
 
 ## Independently reviewable milestones
 
-1. **01a - Lock inputs:** authoritative project dependencies, a validated
-   lock/export workflow, and target installation tests. No updater changes.
-2. **01b - Build bundles and metadata:** target dependency bundles, release
-   manifest and signing using an established format/verifier. Test disconnected
-   installation into disposable environments; no production activation.
+1. **01a - uv lock/export:** authoritative project dependencies, committed
+   `uv.lock`, generated hash-verified pip deployment requirements, and target
+   installation tests. No updater changes.
+2. **01b - Signed release metadata:** release manifest and signing using an
+   established format/verifier. Test fetching release files and installing
+   dependencies from the configured package index into disposable
+   environments; no production activation.
 3. **01c - Prepare immutable environments:** readiness validation, identity
    and release mappings, exercised with isolated fixtures and retained legacy
    environments. Use this implementation from plan 03; do not add a competing
@@ -18,12 +20,14 @@ the existing-install transition are integrated once in plan 03.
 
 ## Scope
 
-- Make `pyproject.toml` authoritative for Python support, runtime
-  dependencies and separate development/test inputs. Prefer a committed
-  `uv.lock` and generated, exact, hash-pinned pip exports after proving the
-  agreed matrix. Use the evaluated pip-tools fallback if that proof fails.
-  Do not maintain multiple independently edited dependency lists. Preserve
-  or intentionally document developer and VS Code commands.
+- Make `pyproject.toml` authoritative for Python support, runtime dependencies
+  and separate development/test inputs. Use a committed `uv.lock` as the
+  single lock and generate exact, hash-verified pip deployment requirements
+  from it. Do not add pip-tools as a second supported lock workflow or maintain
+  independently edited dependency lists. Validate uv resolution/export and
+  pip installation across the agreed matrix; resolve target-specific issues
+  before rollout rather than introducing a second workflow. Preserve or
+  intentionally document developer and VS Code commands.
 - Extend the release builder and CI to build release metadata, checksums,
   verified signatures and
   target-specific artifacts using the same stable tag and source commit.
@@ -31,10 +35,11 @@ the existing-install transition are integrated once in plan 03.
   exist and validate; handle both tag-push and `workflow_call` release paths.
   Retain notices and exclude private runtime data. Add Windows artifacts only
   when the Windows lifecycle plan has passed its packaging gates.
-- Install from the generated, hashed runtime export with a defined pip and
-  build policy. Validate environment markers and exact transitive requirements
-  on each supported target. Account for source builds and their build
-  dependencies; do not imply `--require-hashes` alone makes builds
+- Install from the generated, hash-verified runtime export using pip and a
+  defined build policy. Validate exact transitive requirements on every
+  supported target. Dependencies without compatible wheels may be built from
+  the package index under that policy; do not require or publish target-specific
+  wheel bundles. Do not imply `--require-hashes` alone makes source builds
   reproducible or publisher-authenticated.
 - Implement focused environment preparation helpers. Build environments
   directly at final paths; atomically publish a readiness marker only after
@@ -42,16 +47,12 @@ the existing-install transition are integrated once in plan 03.
   environment only when its identity and readiness match. Keep active,
   previous and other referenced environments immutable and protected.
   Plan 03 wires these helpers into install/update/rollback and pruning together.
-- Publish and test a separate target-specific offline dependency bundle for
-  each supported Pi target. Online dependency-changing updates fetch the
-  same bundle using authenticated metadata; offline operators transfer it
-  with the application archive. Install without contacting a package index
-  during the offline workflow, including build dependencies. Reuse an
-  existing compatible environment for code-only releases.
-- Cache packages where appropriate without treating an unverified cache as
-  trusted. Keep local archive installation and rollback. Signed metadata is
-  normal; an explicitly approved local-only unsigned exception is covered by
-  the updater contract.
+- For dependency-changing updates, retrieve the signed application release
+  and install its locked, hash-verified dependencies from the configured
+  package index. Do not build, publish or transfer target-specific Pi
+  dependency bundles. Reuse a compatible ready environment for code-only
+  releases. New installs and updates require online retrieval and signed
+  release metadata; preserve local rollback to retained releases.
 
 ## Boundary with bootstrap and activation
 
@@ -68,10 +69,10 @@ new lock identity without proof. Establish an explicit mapping for legacy
 releases, preserve their original venv and launch configuration, and test
 rollback across the transition, including installs with a legacy single venv.
 Do not promise rollback across an unavailable or changed system interpreter.
-Offline inputs must include everything needed to prepare the new environment.
-Plan 03 validates bootstrap trust and the fully offline handoff against real
-legacy layouts; this phase does not rely on old scripts verifying signatures
-or consuming the new bundles.
+The one-time bootstrap itself requires network access to retrieve and verify
+its signed inputs. Plan 03 validates the online bootstrap handoff against real
+legacy layouts; this phase does not rely on old scripts understanding new
+metadata or dependency exports.
 
 ## Acceptance
 
@@ -86,10 +87,10 @@ or consuming the new bundles.
   signature verification, asset completeness and selected-target installation
   are checked in CI.
   Hardware/native wheel coverage is reported separately from resolution.
-- For each supported Pi target, build and test dependency-changing preparation
-  with networking disabled and only the transferred application and
-  dependency files. Verify missing/wrong bundles fail without changing active
-  resources.
+- For each supported Pi target, validate uv lock export and package-index
+  installation of locked dependencies, including native dependencies. Verify
+  missing, incompatible, or hash-mismatched packages fail without changing
+  active resources.
 - Test failed preparation, reference protection and legacy environment
   preservation here. End-to-end install, update, rollback, pruning and
   operator bootstrap acceptance belongs to plan 03.
