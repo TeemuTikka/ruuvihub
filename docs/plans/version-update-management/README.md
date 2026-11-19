@@ -21,7 +21,6 @@ simple recovery path.
 | [02 - Release notifications](02-notifications.md) | Show current/latest stable release without blocking the app |
 | [03 - Pi updater/bootstrap](03-updater-and-pi.md) | Implement the Pi updater and migrate existing installs |
 | [04 - Windows installer/updates](04-windows.md) | Implement Windows 11 installation and update behavior |
-| [05 - Web controls](05-web-controls.md) | Add admin-triggered actions after their platform paths work |
 
 ## Implementation direction
 
@@ -41,20 +40,24 @@ simple recovery path.
   Actions secret; handle key compromise through local operator recovery.
   Release metadata signing is separate from Authenticode signing; a paid
   Windows code-signing certificate is not an initial requirement.
-- Keep Pi updating small and operator-driven. Retain the previous app
-  version, not a configurable release history. Keep the downloadable Inno
-  Setup first installer available; use a separate small Windows updater for
-  later updates, invoking Inno Setup in controlled update mode. Share release
-  metadata and verification, not transaction machinery.
+- Keep Pi updating as a command-line operator action. Retain the previous app
+  version, not a configurable release history. Select Pi code and its Python
+  environment through one atomic `current` link. Keep the downloadable Inno
+  Setup first installer available; use a separate command-line Windows updater
+  for later updates, invoking Inno Setup in controlled update mode. Select the
+  Windows app and bundled Python together through one versioned startup
+  command. Share release metadata and verification, not transaction machinery.
 - Test Windows BLE under the service account. If it does not work, use the
   whole app in the logged-in user session; scanning pauses at sign-out. The
   live developer-session scan already works, but service-mode BLE remains
   unverified.
 - Keep the database/settings outside app release directories. Back up before
   updating, but never automatically restore a backup over newer readings.
-  Permit app rollback only when it can safely use current data.
-- Add simple admin notifications. Add web update controls only after the
-  matching command or installer works reliably.
+  Require persisted-data changes to remain usable by the immediately previous
+  app release, and test that before publication. Permit app rollback only
+  when it can safely use current data.
+- Add simple admin release notifications and a Check now action. Keep install,
+  update and revert actions on the command line.
 
 ## Validation
 

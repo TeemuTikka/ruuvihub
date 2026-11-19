@@ -37,11 +37,17 @@ basic recovery; avoid broad support matrices and generalized frameworks.
   automatically restore an older backup over newer readings. Roll back the
   application only when it can safely use the current data; otherwise stop
   and require operator recovery.
+- Keep database and persisted-settings changes readable and writable by the
+  immediately previous app release. Use additive migrations where needed.
+  Before publishing a release that changes persisted data, test the previous
+  app against a copy of data that the new app has migrated and written. If
+  that test fails, stage the change across releases instead of publishing an
+  update that cannot safely revert.
 - Keep one previous working application version for revert. No configurable
   retention policy or fleet management is needed.
 - First implement and validate the Pi path. Windows remains in scope, with
-  a downloadable first-install installer and separate small Windows updater.
-  Share release metadata/signature checks, not transaction machinery.
+  a downloadable first-install installer and separate command-line Windows
+  updater. Share release metadata/signature checks, not transaction machinery.
 
 ## Small set of implementation decisions
 
@@ -52,24 +58,28 @@ basic recovery; avoid broad support matrices and generalized frameworks.
   GitHub release.
 - Keep the Pi updater as a small operator command that downloads, verifies,
   stages and activates a versioned release; retain the previous release for
-  manual or failed-start recovery. Add only the interruption handling needed
-  to avoid leaving the installation unusable.
+  manual or failed-start recovery. Point `current` at a release containing
+  both code and a link to its prepared Python environment; replace only that
+  one link during activation and revert. Add only the interruption handling
+  needed to avoid leaving the installation unusable.
 - Use a one-time online operator bootstrap to migrate an existing Pi install.
   It preserves the current app and persistent data, installs the updater, and
   verifies the existing app still starts. Do not make old scripts understand
   the new updater.
 - For Windows, use Inno Setup for first install; the separate Windows updater
   invokes it in controlled update mode. Keep app versions separate so an
-  update does not overwrite the last working version. First test
-  service-account BLE; use the explicit user-session mode if needed.
-- Add web update controls only after the relevant command/installer path works.
-  Require an admin action and recheck version/signature before installation.
+  update does not overwrite the last working version. Select app code and its
+  bundled Python with one versioned startup command. First test service-account
+  BLE; use the explicit user-session mode if needed.
+- Show release notifications and a manual Check now action to web admins.
+  Keep installation, updates and reverts as operator command-line actions;
+  the updater rechecks version and signature before installation.
 
 ## Out of scope
 
 - Fleet administration, exhaustive platform matrices, multiple installers,
   pluggable adapters, a persistent updater daemon, generic migration engines,
-  configurable release retention and unattended updates.
+  configurable release retention, unattended updates and web update controls.
 - Offline install/update packages, local archive sideloading, Pi dependency
   bundles, Windows 10 support and automatic restoration of old database
   backups over newer data.

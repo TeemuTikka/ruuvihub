@@ -8,7 +8,7 @@ the Pi workflow first; this is not a shared cross-platform updater engine.
 
 - Provide a small operator command to check status, download the latest
   compatible release, install it, and revert to the previous working app.
-  Web controls can call this command after it is reliable.
+  Updates and reverts are started from the command line.
 - Fetch only from
   [RuuviHub GitHub Releases](https://github.com/TeemuTikka/ruuvihub/releases).
   Verify signed metadata using the embedded public key, then verify the
@@ -18,20 +18,32 @@ the Pi workflow first; this is not a shared cross-platform updater engine.
   does not.
 - Download and prepare the new release without changing the active app.
   Keep the database, settings, certificates and logs in their persistent
-  locations. Switch to the new version only after preparation; retain the
-  previous version. Use the simplest activation/recovery mechanism compatible
-  with the existing Pi layout. Handle interruption at download, preparation,
-  switch and service restart without losing both working versions.
+  locations. Each `releases/<version>/` directory contains the app and a
+  `venv` link to its prepared environment under `shared/venvs/`. Change the
+  systemd `ExecStart` to use absolute paths under `current/venv/bin/python3`
+  and `current/src/main.py`, so `current` selects code and dependencies
+  together. After preparation and a consistent data backup, stop the service
+  and atomically replace `current` using a temporary link and rename in the
+  same directory. Restart and check service status plus the expected `/healthz`
+  version. On a failed check, atomically point `current` back to the retained
+  release and restart it.
+  A power loss during replacement leaves `current` pointing to either complete
+  release. If the selected release fails after reboot, the operator can revert
+  from the command line. Keep the previous release and every environment it
+  references.
 - Install locked dependencies from the configured package index when runtime
-  dependencies change. Reuse the current environment for code-only releases
-  when its lock identity matches. Do not build target-specific wheel bundles.
+  dependencies change. Reuse an installed environment for code-only releases
+  when its runtime lock and system Python identity match. Never modify an
+  environment referenced by the active or previous release. Do not build
+  target-specific wheel bundles.
 - Before updating, make a consistent data backup for operator recovery.
-  Never replace current readings with that backup automatically. If the
-  previous app cannot safely use current data, report that revert is blocked
-  and require operator recovery.
-- Use the same command for local operator updates and any later web-triggered
-  update; do not add a daemon, plugin system, configurable retention policy,
-  or general transaction framework. Keep one previous app version.
+  Never replace current readings with that backup automatically. Normal
+  releases must preserve compatibility with the immediately previous app. If
+  unexpected incompatibility is found during revert, stop and require
+  operator recovery rather than restoring an older backup over newer data.
+- Use the same command for operator updates and reverts; do not add a daemon,
+  plugin system, configurable retention policy or general transaction
+  framework. Keep one previous app version.
 
 ## Existing Pi installations
 
@@ -42,10 +54,14 @@ Provide a one-time online bootstrap, explicitly run by the operator:
 2. Download the bootstrap from the approved release source over validated
    HTTPS. The bootstrap includes the release public key; verify signed
    metadata and artifact hashes before running downloaded application code.
-3. Install the new updater and management entry points without overwriting an
-   executing script. Keep the existing app selected during the handoff.
-4. Verify the app still starts and the new update/revert command works. If
-   handoff fails, leave or restore the legacy launch configuration.
+3. Add a `venv` link inside the active legacy release pointing to the resolved
+   target of its existing `shared/venv` (or that directory itself). Preserve
+   that environment. Install the new updater and management entry points
+   without overwriting an executing script. Keep the existing app selected.
+4. Change the systemd command from `shared/venv` to `current/venv`, reload and
+   restart the service, then check status and the expected `/healthz` version.
+   Verify the new update/revert command works. If the handoff fails, restore
+   the saved legacy service configuration and leave its app and venv intact.
 5. Perform the first app update separately after bootstrap succeeds.
 
 Do not extend the legacy updater to understand the new release format.
@@ -53,7 +69,14 @@ Do not extend the legacy updater to understand the new release format.
 ## Acceptance
 
 - Test a clean install, an existing install bootstrap, code-only update,
-  dependency-changing update, interrupted switch/start and revert.
+  dependency-changing update, interrupted switch/start and revert. Simulate
+  interruption before and after the single `current` replacement, including
+  reboot/startup, and verify no code/environment mismatch is selected.
+- For each release that changes the database or persisted settings, run the
+  new release's migration and a representative write against disposable data,
+  then start the immediately previous release on that copy and verify it can
+  read and write. Make this a release CI check; an incompatible change must
+  be staged across releases before publication.
 - Verify bad signatures, hashes, sources and archives are rejected before
   activation, while a failed preparation leaves the active app and data
   untouched.

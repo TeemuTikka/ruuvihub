@@ -15,8 +15,8 @@ the version and source decisions in [00](00-contracts.md).
 - Keep the implementation small: use a timeout, avoid overlapping checks,
   and display stale/failed status honestly. Do not build a general retry,
   scheduling or release-channel framework.
-- Defer web install/update controls to [05](05-web-controls.md), after the
-  corresponding platform update path works.
+- Keep the web UI limited to release information and Check now; install,
+  update and revert remain operator command-line actions.
 
 ## Acceptance
 

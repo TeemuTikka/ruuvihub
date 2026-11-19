@@ -11,8 +11,8 @@ the existing-install transition are integrated once in plan 03.
 2. Add only the signed release metadata and artifact checks needed by the
    installer/updater.
 3. Implement simple dependency reuse: reuse the installed environment when
-   its runtime lock identity matches; install a new environment when it does
-   not. Plan 03 uses this behavior.
+   its runtime lock and system Python identity match; install a new
+   environment when they do not. Plan 03 uses this behavior.
 
 ## Scope
 
@@ -26,7 +26,9 @@ the existing-install transition are integrated once in plan 03.
   minimum updater version, size and hash. Add Windows artifacts with plan 04.
 - Install locked dependencies from the configured package index. Do not
   publish Pi dependency bundles. Record the lock identity for the installed
-  environment so code-only releases can reuse it.
+  environment so code-only releases can reuse it. Include the system Python
+  identity in the reuse check; each release links to its prepared environment
+  and never changes the contents of an environment used by an active release.
 
 ## Boundary with bootstrap and activation
 
