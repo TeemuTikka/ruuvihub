@@ -74,6 +74,8 @@ if __name__ == "__main__":
     parser.add_argument("requirements", type=Path)
     args = parser.parse_args()
     try:
-        print(prepare_environment(args.environments, args.requirements))
+        environment = prepare_environment(args.environments, args.requirements)
+        subprocess.run(["sync", "-f", str(environment)], check=True)
+        print(environment)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Could not prepare Pi Python environment: {error}\n")

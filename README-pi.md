@@ -155,6 +155,9 @@ Connection test PASSED.
 
 ## 5. Updating
 
+The commands below are for current Pi installations. The new signed-release
+updater is not installed by `install.sh`; managed bootstrap is not yet available.
+
 When a new release is published, transfer the new archive to the Pi the
 same way as step 1, then run:
 ```bash

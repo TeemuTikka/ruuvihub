@@ -821,6 +821,13 @@ callback, and atomically replaces `current`. It confirms startup via the
 caller's health check and attempts to restore the prior selection on failure.
 It never restores an older database or settings backup.
 
+`scripts/pi_update.py` wires staging, preparation and activation into
+`status`, `update` and offline `revert` commands for the managed layout.
+It expects root-controlled management files, an installed public key, and
+the managed systemd unit. `pi_update_data.py` runs backup and loopback
+health probes as the service user. The legacy installer does not install
+these commands; the managed bootstrap is still pending.
+
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
 `GITHUB_TOKEN`. Keep repo **Settings → Actions → General → Workflow

@@ -131,8 +131,8 @@ class PiActivation:
         backup: Callable[[], None] | None = None,
     ) -> None:
         _write_switch(self.base, source, target, previous)
-        self.stop()
         try:
+            self.stop()
             if backup is not None:
                 backup()
             _select(self.base, target)

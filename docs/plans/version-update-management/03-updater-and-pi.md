@@ -2,9 +2,10 @@
 
 Status: in progress. Verified release download and staging are implemented
 in `scripts/pi_release.py`. Atomic selection and revert are implemented
-in `scripts/pi_activation.py`. Wiring the operator command, systemd and
-backup callbacks, bootstrap, pruning, and persisted-data compatibility
-checks remain. Depends on [00](00-contracts.md) and [01](01-metadata-and-pi.md).
+in `scripts/pi_activation.py`. The operator command now combines these
+helpers with systemd checks and pre-update SQLite/settings backups.
+Bootstrap, pruning, and persisted-data compatibility checks remain.
+Depends on [00](00-contracts.md) and [01](01-metadata-and-pi.md).
 
 ## Pi updater
 
@@ -24,8 +25,8 @@ checks remain. Depends on [00](00-contracts.md) and [01](01-metadata-and-pi.md).
   `venv` link to its prepared environment under `shared/venvs/`. Change the
   systemd `ExecStart` to use absolute paths under `current/venv/bin/python3`
   and `current/src/main.py`, so `current` selects code and dependencies
-  together. After preparation and a consistent data backup, stop the service
-  and atomically replace `current` using a temporary link and rename in the
+  together. After preparation, stop the service, take a consistent data
+  backup, and atomically replace `current` using a temporary link and rename in the
   same directory. Restart and check service status plus the expected `/healthz`
   version. On a failed check, atomically point `current` back to the retained
   release and restart it.
