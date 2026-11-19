@@ -4,8 +4,9 @@ Status: in progress. A build helper creates the Windows x64 app payload
 using an embeddable Python ZIP and locked wheels. Release tooling can sign,
 verify and stage the Windows installer artifact. The launcher binds each
 release to its own bundled Python and keeps data outside the payload.
-Per-user task selection and rollback are implemented; installer and updater
-entry points and real Windows validation remain.
+Per-user task selection and rollback are implemented. The Inno Setup
+installer supports first install and a controlled update mode. The updater
+entry point, release publication, and live Windows validation remain.
 Use Windows-specific installation/update behavior; share the release metadata
 and signature checks, not a cross-platform transaction engine. Development
 checkouts remain notification-only.

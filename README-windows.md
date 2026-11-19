@@ -5,11 +5,11 @@ For deploying to Raspberry Pi, see [README-pi.md](README-pi.md). For project
 structure, key classes, and debugging guidance, see
 [README-dev.md](README-dev.md).
 
-The signed Windows installer and updater are not yet available. The
-versioned Windows x64 payload can be built locally; see
-[Windows release payload](README-dev.md#windows-release-payload).
-The managed install will run under your logged-in user, not as a Windows
-service. Scanning pauses when you sign out.
+The signed Windows installer is not yet published. See
+[Windows release payload](README-dev.md#windows-release-payload) for the
+local build. The managed install runs under your logged-in user, not as a
+Windows service. Scanning pauses when you sign out. Its uninstaller
+preserves settings, readings, logs, and certificates.
 
 ---
 

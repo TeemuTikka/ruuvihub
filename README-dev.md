@@ -875,6 +875,14 @@ download and signature verification code with Pi, not the activation logic.
 Scheduler action. `scripts/windows_activation.py` records the switch,
 checks the selected version on loopback, and restores the previous task
 action on failure without restoring older persistent data.
+`scripts/build_windows_installer.py` packages that payload with Inno Setup
+and embeds `RELEASE_SIGNING_PUBLIC_KEY`. The installer verifies its own
+signed metadata and file digest before calling `scripts/windows_setup.py`
+to publish the versioned payload and activate its task.
+
+```powershell
+python scripts\build_windows_installer.py v1.2.0 dist\ruuvihub-v1.2.0-windows-x64 --iscc C:\path\to\ISCC.exe
+```
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
