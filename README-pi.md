@@ -22,6 +22,10 @@ project structure, key classes, and debugging guidance, see
   install/update — the release archive itself is transferred manually)
 - RuuviTag sensor(s) in range
 
+The managed updater's locked dependency preparation was checked under
+64-bit Debian 13 (Trixie) with system Python 3.13.5 in Docker. Raspberry Pi OS
+hardware, BLE, and systemd activation were not covered by that check.
+
 This guide (and `scripts/install.sh`/`update.sh`/`rollback.sh`) is fully
 repeatable — run it on as many independent Pis as you like; each install
 is self-contained under its own `/home/pi/ruuvihub/`.

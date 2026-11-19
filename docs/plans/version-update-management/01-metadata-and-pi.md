@@ -5,6 +5,9 @@ exports are complete. Ed25519 metadata signing and artifact verification are
 implemented in release tooling; live publication requires maintainer key
 provisioning. Locked environment preparation and reuse are implemented
 separately from activation. Plan 03 integrates them into the managed updater.
+Package-index installation and environment reuse passed under Debian 13
+ARM64 in Docker with system Python 3.13.5; real Raspberry Pi OS validation
+remains pending.
 Depends on the relevant [contracts](00-contracts.md). Production activation
 and the existing-install transition are integrated once in plan 03.
 
