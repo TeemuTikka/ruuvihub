@@ -739,21 +739,76 @@ or without `ruuvitag-sensor`/`bleak` installed at all.
 
 ### Testing on Linux via Docker (optional)
 
-Not required for BLE itself (that works on Windows directly), but
-useful to sanity-check Linux-specific behavior (e.g. before deploying to
-a Pi) or to reproduce a Linux-only bug without a second machine:
+On Windows 11, use Docker Desktop's Linux engine for Linux-only behavior
+and [native Windows tests](README-windows.md#agent-validation-on-windows-11)
+for Windows behavior. Run these checks in PowerShell before starting a
+container:
 
-```bash
-docker run --rm -it -v "${PWD}:/app" -w /app python:3.12-slim bash
-# inside the container:
-apt-get update && apt-get install -y build-essential libglib2.0-dev
-pip install -r tests/requirements.txt
-python -m pytest tests/ -q --ignore=tests/test_connection.py
+```powershell
+docker context show
+docker version --format '{{.Client.Version}} / {{.Server.Version}} ({{.Server.Os}}/{{.Server.Arch}})'
 ```
 
-Actual BLE scanning still needs a Bluetooth adapter passed through to
-the container (not covered here — for real hardware testing on Linux,
-prefer running directly on a Pi per [README-pi.md](README-pi.md)).
+Expect a responding Linux server (normally `desktop-linux`). A running
+Docker Desktop process or a client version alone is not enough. If the
+server returns HTTP 500 or is unreachable, check Docker Desktop's status
+and `wsl --status` / `wsl -l -v`. Ask before restarting Docker Desktop,
+shutting down WSL, or rebooting a shared machine.
+
+From the repository root, test a committed snapshot in a disposable
+Linux/amd64 container using the same Python minor version as CI. Mount
+only the Git archive read-only so the container doesn't see the Windows
+venv, ignored settings and databases, or other local files:
+
+```powershell
+$archive = Join-Path ([System.IO.Path]::GetTempPath()) (
+    'ruuvihub-' + [guid]::NewGuid().ToString('N') + '.tar'
+)
+try {
+    git archive --format=tar --output=$archive HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'git archive failed' }
+
+    docker run --rm --platform linux/amd64 `
+        --mount "type=bind,source=$archive,target=/source.tar,readonly" `
+        python:3.11-slim sh -ec 'mkdir /app; tar -xf /source.tar -C /app; cd /app; python -m pip install --require-hashes --only-binary=:all: -r tests/requirements.txt; python -m pytest tests/ -q --ignore=tests/test_connection.py'
+    if ($LASTEXITCODE -ne 0) { throw 'Docker validation failed' }
+} finally {
+    Remove-Item -LiteralPath $archive -ErrorAction SilentlyContinue
+}
+```
+
+`git archive HEAD` excludes uncommitted changes. To test those in Docker,
+copy the changed test inputs into a clean snapshot first; don't mount your
+whole worktree or report a `HEAD` run as validation of local edits. No
+compiler or extra OS packages are needed for the locked wheel-only suite.
+
+For Pi wheel and venv preparation, replace the `docker run` invocation
+in the `try` block with an interactive 64-bit Debian container:
+
+```powershell
+docker run --rm -it --platform linux/arm64 `
+    --mount "type=bind,source=$archive,target=/source.tar,readonly" debian:trixie-slim sh
+```
+
+In the container:
+
+```sh
+set -e
+test "$(uname -m)" = aarch64
+apt-get update && apt-get install -y python3 python3-venv
+mkdir /app
+tar -xf /source.tar -C /app
+cd /app
+install -d -o nobody -g nogroup /tmp/ruuvihub-venvs
+first=$(runuser -u nobody -- /usr/bin/python3 scripts/prepare_pi_venv.py /tmp/ruuvihub-venvs requirements.txt)
+second=$(runuser -u nobody -- /usr/bin/python3 scripts/prepare_pi_venv.py /tmp/ruuvihub-venvs requirements.txt)
+test "$first" = "$second"
+printf 'Reused locked environment: %s\n' "$second"
+exit
+```
+
+These checks do not validate Raspberry Pi hardware, BLE, or systemd
+activation; see [README-pi.md](README-pi.md) for deployment.
 
 ### Inspecting the SQLite database
 

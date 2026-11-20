@@ -197,6 +197,46 @@ Press `Ctrl+C` to stop.
 
 ## 5. Tests
 
+### Agent validation on Windows 11
+
+Run from the repository root in PowerShell. Use the existing root virtual
+environment if available; invoke its interpreter directly so activation and
+the machine's default `python` don't affect the run:
+
+```powershell
+& .\.venv\Scripts\python.exe --version
+& .\.venv\Scripts\python.exe -m pytest tests\ -q --ignore=tests\test_connection.py
+```
+
+For a new environment, create it with x64 Python 3.11+ (`python -m venv .venv`)
+and install the locked test dependencies with
+`& .\.venv\Scripts\python.exe -m pip install --require-hashes -r tests\requirements.txt`.
+Run focused tests first for localized changes. For installer and updater
+changes, start with `tests\test_windows_*.py` (pass the relevant filenames
+explicitly to pytest) and see [Windows release payload](README-dev.md#windows-release-payload).
+Use the Inno Setup version and verified downloads from the release workflow;
+the build Python must match the embeddable ZIP's major/minor version.
+An unpublished installer cannot pass the production GitHub release
+verification step. Use a disposable test key for local signing tests,
+not the production signing key, and do not push a release tag for a local build.
+
+- Use native Windows, not Docker, for WinRT BLE, Inno Setup, and Task
+  Scheduler checks. Run the excluded live BLE test only when requested and
+  hardware is available; report counts or outcomes, not tag addresses.
+- Test installer and scheduler lifecycles in a disposable Windows account
+  or VM. Temporary directories alone do not isolate the scheduled task:
+  RuuviHub uses one task per Windows user. Use disposable settings and
+  SQLite data, confirm the expected version on loopback `/healthz`, and
+  check update, offline revert, failure recovery, and uninstall data
+  preservation separately from packaging. Do not sign out the working
+  session to test logon behavior without approval.
+- For Linux behavior on this machine, use
+  [Docker Desktop's Linux engine](README-dev.md#testing-on-linux-via-docker-optional).
+  Report the platform, Python version, test counts, and any unverified
+  hardware or lifecycle steps separately.
+
+### Separate test environment (optional)
+
 The `tests/` directory is a separate project with its own venv.
 
 ```powershell

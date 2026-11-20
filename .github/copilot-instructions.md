@@ -1,5 +1,12 @@
 # Copilot Instructions for RuuviHub
 
+## Testing on Windows 11
+
+Follow the [native Windows test workflow](../README-windows.md#agent-validation-on-windows-11)
+for Windows behavior and the [Docker workflow](../README-dev.md#testing-on-linux-via-docker-optional)
+for Linux and Pi dependency checks. Don't restart Docker, shut down WSL, or
+sign out a shared host without approval.
+
 ## Documentation stays in sync with code
 
 This repo has multiple README files, each covering a different concern:
