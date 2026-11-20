@@ -254,6 +254,7 @@ def test_sync_now_triggers_background_backfill_and_updates_status(tmp_path):
                 time.sleep(0.05)
 
         mock_backfill.assert_awaited_once()
+        assert mock_backfill.await_args.kwargs == {"recover_recent_history": True}
         assert app.state.backfill_sync_status["running"] is False
         assert app.state.backfill_sync_status["last_synced_at"] is not None
 

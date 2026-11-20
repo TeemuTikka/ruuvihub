@@ -91,8 +91,20 @@ class Storage:
         await asyncio.get_running_loop().run_in_executor(
             None, self._save_record, record
         )
+        await self._cache_readings(mac, [record])
+
+    async def add_history(self, mac: str, records: list[dict]) -> int:
+        """Insert missing history readings without re-queuing existing ones."""
+        if not records:
+            return 0
+        inserted = await asyncio.to_thread(self._save_history, mac, records)
+        if inserted:
+            await self._cache_readings(mac, inserted)
+        return len(inserted)
+
+    async def _cache_readings(self, mac: str, new_records: list[dict]) -> None:
         async with self._lock:
-            records = [*self._data.get(mac, ()), record]
+            records = [*self._data.get(mac, ()), *new_records]
             records.sort(key=lambda reading: reading["timestamp"])
             self._data[mac] = deque(records[-self._max_entries:], maxlen=self._max_entries)
 
@@ -471,6 +483,26 @@ class Storage:
         except Exception:
             logger.exception("Failed to persist record for %s", record.get("mac"))
             raise
+
+    def _save_history(self, mac: str, records: list[dict]) -> list[dict]:
+        inserted = []
+        with closing(sqlite3.connect(self._db_path)) as conn, conn:
+            for record in records:
+                timestamp = record["timestamp"]
+                result = conn.execute("""
+                    INSERT INTO readings (mac, timestamp, data)
+                    SELECT ?, ?, ?
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM readings WHERE mac = ? AND timestamp = ?
+                        AND json_extract(data, '$.temperature') IS ?
+                        AND json_extract(data, '$.humidity') IS ?
+                        AND json_extract(data, '$.pressure') IS ?
+                    )
+                """, (mac, timestamp, json.dumps(record, default=str), mac, timestamp,
+                      record.get("temperature"), record.get("humidity"), record.get("pressure")))
+                if result.rowcount:
+                    inserted.append(record)
+        return inserted
 
     def _get_temperature_summaries_sync(
         self, macs: List[str], day_start: str, day_end: str,

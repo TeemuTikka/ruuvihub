@@ -263,12 +263,12 @@ async def sync_now(
 
     Unlike the automatic history_backfill_loop (which only runs if
     history_backfill_enabled is on), this lets an admin manually pull
-    history right now regardless of that setting -- e.g. right after
+    up to ten days of history regardless of that setting -- e.g. right after
     fixing a flaky tag, without waiting for the next scheduled cycle.
 
     Runs as a detached background task (not awaited here) since a full
-    pass can take up to ~60s per tag; the request returns immediately
-    and the Config page shows simple running/last-synced status instead
+    pass can take up to the configured per-tag timeout for each tag; the
+    request returns immediately and the Config page shows running/last-synced status instead
     of blocking the browser for however long the sync takes. Guarded by
     ``backfill_sync_status["running"]`` so a second click while one is
     already in flight is a no-op rather than starting a second pass
@@ -297,7 +297,9 @@ async def _run_manual_sync(settings_store, storage, ble_lock, app_state) -> None
     try:
         async with ble_lock:
             settings = await settings_store.get()
-            app_state.backfill_sync_status["result"] = await run_backfill_for_known_tags(settings, storage, settings_store)
+            app_state.backfill_sync_status["result"] = await run_backfill_for_known_tags(
+                settings, storage, settings_store, recover_recent_history=True,
+            )
     except Exception:
         app_state.backfill_sync_status["error"] = True
         logger.exception("Manual 'sync history now' pass failed")

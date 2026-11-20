@@ -360,11 +360,12 @@ tag cannot stall a whole cycle indefinitely:
   lower bound, and auto-disables a tag (persisted via
   `SettingsStore.set_backfill_disabled`) after
   `history_backfill_failure_threshold` consecutive failures — reset to
-  0 on any success. On success the tag's cursor advances to when that
-  pull started (not on failure, so a missed gap is retried next time).
-  Recovered records are stored via the normal `Storage.add()`, so they
-  behave exactly like live scans everywhere else (UI, dashboard, CSV
-  export, cloud upload batch).
+  0 on any success. The manual pass instead requests a rolling 10-day
+  range and advances an existing cursor only if the range covered it.
+  Failed transfers and database writes never advance the cursor.
+  `Storage.add_history()` inserts missing readings in one transaction
+  per tag, matching existing rows by tag, timestamp and environmental
+  values. Only new rows enter the upload queue.
 
 Backfill requires firmware 3.30.0 or newer and recovers only temperature,
 humidity, and pressure. The tag retains a rolling log, so readings older

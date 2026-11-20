@@ -311,6 +311,11 @@ under test does and how the fake-BLE test shim works.
 
 ## 6. Inspecting stored data (SQLite)
 
+Use **System settings → Sync history now** to recover up to 10 days
+of history still stored on reachable RuuviTags. This fills older gaps
+without re-importing matching readings. See the
+[history backfill limits](README-pi.md#9-history-backfill-recovering-gaps-after-a-pibluetooth-outage).
+
 ### Install SQLite CLI (one-time)
 
 ```powershell

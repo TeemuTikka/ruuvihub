@@ -10,7 +10,7 @@ outage can be partially filled in.
 
 See README-dev.md's GATT history backfill section and protocol references
 for the technical background. This cannot recover gaps beyond the tag's
-on-device log depth (~12 days at firmware defaults) and why it cannot
+on-device log depth (about 10 days on a standard RuuviTag) and why it cannot
 run concurrently with passive scanning on the same BLE radio (no
 library-level lock protects that; see ``main.py``'s shared ``ble_lock``).
 
@@ -27,7 +27,7 @@ merged into one record.
 import asyncio
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from tag_history import download_history
@@ -53,6 +53,7 @@ _BUCKET_SECONDS = 10
 # on-device log, so this default is deliberately much larger than
 # scan_timeout_seconds's.
 _DEFAULT_PER_TAG_TIMEOUT_SECONDS = 120
+_MANUAL_HISTORY_LOOKBACK = timedelta(days=10)
 
 
 def merge_history_entries(entries: List[dict]) -> List[dict]:
@@ -123,8 +124,7 @@ async def backfill_tag(
 
     Args:
         mac: Tag MAC address.
-        since: ISO-8601 timestamp of the last reading already stored for
-            this tag (used as the GATT range's start and for dedup), or
+        since: ISO-8601 lower bound for the GATT history range, or
             ``None`` to pull all available on-device history (fresh tag).
         timeout_seconds: Max seconds to wait for this tag's GATT pull
             before giving up (see ``Settings.history_backfill_timeout_seconds``).
@@ -176,7 +176,6 @@ async def backfill_tag(
     for record in merged:
         record["mac"] = mac
 
-    logger.info("History backfill recovered %d record(s) for %s", len(merged), mac)
     return merged
 
 
@@ -218,7 +217,9 @@ async def initialize_pre_scan_backfill_cursors(settings, storage) -> None:
             await storage.set_backfill_cursor(mac, latest)
 
 
-async def run_backfill_for_known_tags(settings, storage, settings_store) -> dict:
+async def run_backfill_for_known_tags(
+    settings, storage, settings_store, *, recover_recent_history: bool = False,
+) -> dict:
     """Run a full backfill pass over every eligible known tag, sequentially.
 
     Eligible tags are the configured whitelist (``settings.tag_addresses``)
@@ -234,13 +235,10 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> dict
     skipped on every subsequent cycle until an admin clears it from the
     Config page.
 
-    Uses ``storage``'s dedicated backfill cursor (not the latest live-scan
-    reading) as the GATT range's lower bound -- see
-    ``Storage.get_backfill_cursor`` for why the two must be kept separate.
-    If no cursor is recorded yet for a mac (should be rare in practice
-    since ``initialize_pre_scan_backfill_cursors`` seeds it at startup),
-    falls back to the latest live-scan reading so a never-before-backfilled
-    tag with existing history doesn't re-import everything from scratch.
+    Automatic passes start from the dedicated backfill cursor, falling
+    back to the latest live-scan reading when there is no cursor yet.
+    Manual recovery instead looks back up to ten days, limited by any
+    shorter database retention setting, regardless of the cursor.
     """
     disabled = settings.history_backfill_disabled_tags
     if settings.tag_addresses:
@@ -258,11 +256,18 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> dict
         if mac not in _consecutive_failures:
             _consecutive_failures[mac] = count
 
+    if recover_recent_history:
+        lookback = _MANUAL_HISTORY_LOOKBACK
+        if 0 < settings.db_retention_days < lookback.days:
+            lookback = timedelta(days=settings.db_retention_days)
+
     for mac in macs:
-        since = await storage.get_backfill_cursor(mac)
-        if since is None:
-            since = await storage.get_latest_timestamp(mac)
-        pull_started_at = datetime.now(tz=timezone.utc).isoformat()
+        cursor = await storage.get_backfill_cursor(mac)
+        if cursor is None:
+            cursor = await storage.get_latest_timestamp(mac)
+        now = datetime.now(tz=timezone.utc)
+        pull_started_at = now.isoformat()
+        since = (now - lookback).isoformat() if recover_recent_history else cursor
         try:
             records = await backfill_tag(
                 mac, since, timeout_seconds=settings.history_backfill_timeout_seconds
@@ -287,8 +292,9 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> dict
 
         _consecutive_failures.pop(mac, None)
         await settings_store.set_backfill_failure_count(mac, None)
-        for record in records:
-            await storage.add(record["mac"], record)
+        inserted = await storage.add_history(mac, records)
+        if inserted:
+            logger.info("History backfill recovered %d record(s) for %s", inserted, mac)
 
         # The GATT pull covers the tag's whole on-device log up to "now",
         # so on success the cursor advances to when the pull *started*
@@ -299,9 +305,11 @@ async def run_backfill_for_known_tags(settings, storage, settings_store) -> dict
         # be picked up (starting the next pass's ``since`` strictly after
         # it). Only advanced on success, never on failure, so a failed
         # pull's gap is retried next time instead of silently skipped.
-        await storage.set_backfill_cursor(mac, pull_started_at)
+        # A manual replay must not skip the gap before its lower bound.
+        if not recover_recent_history or cursor is None or since <= cursor <= pull_started_at:
+            await storage.set_backfill_cursor(mac, pull_started_at)
         result["succeeded"] += 1
-        result["recovered"] += len(records)
+        result["recovered"] += inserted
 
     logger.info(
         "History backfill finished: %d succeeded, %d failed, %d disabled, %d recovered record(s)",
