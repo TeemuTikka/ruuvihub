@@ -43,14 +43,6 @@ def _tray_icon(settings_path: Path):
     ))
 
 
-def _detach_console() -> None:
-    import ctypes
-
-    sys.stdout = sys.stderr = open(os.devnull, "w", encoding="utf-8")
-    # Keep the existing task action so the v2.0.0 updater can recognize it.
-    ctypes.windll.kernel32.FreeConsole()
-
-
 def prepare_data(release: Path, data: Path) -> Path:
     data = data.resolve()
     release = release.resolve()
@@ -99,7 +91,10 @@ if __name__ == "__main__":
     os.environ["CONFIG_PATH"] = str(data / "config.json")
     os.environ["SETTINGS_PATH"] = str(data / "settings.local.json")
     os.environ.pop("RUUVIHUB_DISABLE_HTTPS", None)
-    _detach_console()
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
     from main import main
 
     tray = None

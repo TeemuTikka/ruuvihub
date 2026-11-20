@@ -7,5 +7,7 @@ if not defined VERSION (
   exit /b 1
 )
 set "RELEASE=%~dp0releases\%VERSION%"
-"%RELEASE%\runtime\python.exe" -I -B "%RELEASE%\update.py" --data-dir "%LOCALAPPDATA%\RuuviHub" %*
+set "PYTHON=%RELEASE%\runtime\python-console.exe"
+if not exist "%PYTHON%" set "PYTHON=%RELEASE%\runtime\python.exe"
+"%PYTHON%" -I -B "%RELEASE%\update.py" --data-dir "%LOCALAPPDATA%\RuuviHub" %*
 exit /b %ERRORLEVEL%
