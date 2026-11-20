@@ -34,8 +34,12 @@ def _tray_icon(settings_path: Path):
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((2, 2, 61, 61), radius=13, fill="#17675e")
     draw.line(((12, 42), (23, 30), (32, 36), (49, 18)), fill="white", width=5, joint="curve")
+
+    def open_dashboard(_icon, _item):
+        webbrowser.open(_dashboard_url(settings_path))
+
     return Icon("RuuviHub", image, "RuuviHub", Menu(
-        MenuItem("Open dashboard", lambda: webbrowser.open(_dashboard_url(settings_path)), default=True),
+        MenuItem("Open dashboard", open_dashboard, default=True),
     ))
 
 

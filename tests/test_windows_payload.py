@@ -87,4 +87,5 @@ def test_tray_offers_only_dashboard_and_reads_current_settings(tmp_path, monkeyp
     assert item.default
     path.write_text('{"https_port": 9443}', encoding="utf-8")
     item(tray)
-    assert opened == ["https://127.0.0.1:9443/"]
+    tray()
+    assert opened == ["https://127.0.0.1:9443/"] * 2
