@@ -37,7 +37,8 @@ to keep personal contact addresses out of public Git metadata.
    ```
 
    This invokes `release.yml`, which reruns the hardware-free tests and
-   publishes the release archive. Check the uploaded artifact and release page.
+   publishes the signed Pi archive, Windows installer, metadata, and Pi
+   bootstrap. Check the assets and release page.
 6. Set `AUTO_RELEASE_ENABLED` to `true` under repository Settings → Secrets
    and variables → Actions → Variables when automatic patch releases are wanted.
 
