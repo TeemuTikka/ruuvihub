@@ -942,8 +942,8 @@ On Windows 11, validation used the real per-user Task Scheduler and the
 bundled app: start, update, offline revert, simulated health-check failure
 and recovery, and uninstall-data preservation passed in a disposable
 installation. Live BLE scanning also stored readings from the packaged
-task. The first-install/published-signed-executable and sign-out paths
-remain untested.
+task. See [Windows 11 validation](README-windows.md#windows-11-validation)
+for the published-installer check and remaining lifecycle coverage.
 
 ```powershell
 python scripts\build_windows_installer.py v1.2.0 dist\ruuvihub-v1.2.0-windows-x64 --iscc C:\path\to\ISCC.exe

@@ -5,15 +5,11 @@ For deploying to Raspberry Pi, see [README-pi.md](README-pi.md). For project
 structure, key classes, and debugging guidance, see
 [README-dev.md](README-dev.md).
 
-The signed Windows installer is not yet published. See
-[Windows release payload](README-dev.md#windows-release-payload) for the
-local build. The managed install runs under your logged-in user, not as a
-Windows service. Scanning pauses when you sign out. Its uninstaller
-preserves settings, readings, logs, and certificates.
-
-When a signed release offers `ruuvihub-vX.Y.Z-windows-x64.exe`, download
-it from the [RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases)
-and run it while signed in to the account that will use RuuviHub. Setup
+Starting with `v2.0.0`, download `ruuvihub-vX.Y.Z-windows-x64.exe` from the
+[RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases)
+and run it while signed in to the account that will use RuuviHub. The
+managed install runs under your logged-in user, not as a Windows service,
+so scanning pauses when you sign out. Setup
 requires an internet connection to check the release signature and
 installer digest. The installer is not Authenticode-signed, so Windows
 may warn that the publisher is unknown. Don't run copies from mirrors.
@@ -39,8 +35,12 @@ On Windows 11 with an ASUS USB-BT500, a live scan detected nearby RuuviTags.
 The bundled app also ran under its per-user scheduled task with scanning
 enabled and stored sensor readings. A disposable installation exercised
 task start, update, revert, failed-health recovery, and uninstall while
-confirming that its data remained in place. Sign-out behavior and a
-first-install run of a published, signed installer have not been tested.
+confirming that its data remained in place. A separate Windows 11 check
+used the published `v2.0.0` installer with disposable data and BLE disabled:
+setup verified the release and started a healthy scheduled task, `status`
+and `update` confirmed it was current, and uninstall removed the task and
+app files while preserving settings and SQLite. Sign-out/sign-in and
+update/revert between two published signed releases remain untested.
 
 ---
 
