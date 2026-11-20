@@ -360,11 +360,12 @@ tag cannot stall a whole cycle indefinitely:
   lower bound, and auto-disables a tag (persisted via
   `SettingsStore.set_backfill_disabled`) after
   `history_backfill_failure_threshold` consecutive failures — reset to
-  0 on any success. On success the tag's cursor advances to when that
-  pull started (not on failure, so a missed gap is retried next time).
-  Recovered records are stored via the normal `Storage.add()`, so they
-  behave exactly like live scans everywhere else (UI, dashboard, CSV
-  export, cloud upload batch).
+  0 on any success. The manual pass instead requests a rolling 10-day
+  range and advances an existing cursor only if the range covered it.
+  Failed transfers and database writes never advance the cursor.
+  `Storage.add_history()` inserts missing readings in one transaction
+  per tag, matching existing rows by tag, timestamp and environmental
+  values. Only new rows enter the upload queue.
 
 Backfill requires firmware 3.30.0 or newer and recovers only temperature,
 humidity, and pressure. The tag retains a rolling log, so readings older
@@ -479,7 +480,7 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   the HTML and `/api/current`; unsupported values fall back to 24. Windows
   subtract elapsed hours in UTC, so midnight and daylight-saving changes do
   not create empty or shortened periods. Trends use actual sample timestamps
-  and break at missing values and segment changes, with now on the left.
+  and break at missing values and segment changes, with now on the right.
   Temperature scale labels and guide lines show the high, midpoint, and low
   used to draw each trend; polling updates the labels with the graph.
   A single View history link opens that hourly range on the sensor page.
@@ -509,8 +510,8 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   nothing.
   The sensor view defaults to the last 3 days, with 6/12/24/48/72-hour and
   3/7/14/30/180/360-day controls. Dashboard cards link to their hourly window. It displays the latest reading in that window
-  above temperature, humidity and pressure charts, with now on the left and
-  older readings to the right. Polling reuses chart instances and refreshes
+  above temperature, humidity and pressure charts, with now on the right and
+  older readings to the left. Polling reuses chart instances and refreshes
   the bounds through now. Legacy 1h/24h/all URLs and battery CSV fields
   remain supported.
   The chart request adds `?chart=true` to receive `{records, since, until}`.
@@ -930,9 +931,11 @@ download and signature verification code with Pi, not the activation logic.
 Scheduler action. `scripts/windows_activation.py` records the switch,
 checks the selected version on loopback, and restores the previous task
 action on failure without restoring older persistent data.
-The installed launcher detaches from its console and uses Windows-only
-pystray and Pillow dependencies for a notification-area icon that opens
-the local dashboard. The task action stays compatible with `v2.0.0`.
+The installed launcher uses Windows-only pystray and Pillow dependencies
+for a notification-area icon that opens the local dashboard. The bundled
+GUI interpreter occupies `runtime/python.exe` so the task action stays
+compatible with `v2.0.0`; setup and the updater use `python-console.exe`
+when present and fall back to `python.exe` on older releases.
 `scripts/build_windows_installer.py` packages that payload with Inno Setup
 and embeds `RELEASE_SIGNING_PUBLIC_KEY`. The installer verifies its own
 signed metadata and file digest before calling `scripts/windows_setup.py`

@@ -68,7 +68,7 @@ def _trend_path(samples, since, until, low, high):
         stamp = datetime.fromisoformat(sample["timestamp"])
         if stamp.tzinfo is None:
             stamp = stamp.replace(tzinfo=timezone.utc)
-        x = 2 + (until - stamp).total_seconds() / duration * 236
+        x = 2 + (stamp - since).total_seconds() / duration * 236
         y = 32 if high == low else 2 + (high - value) / (high - low) * 60
         command = "L" if connected and previous_segment == sample["segment"] else "M"
         path.append(f"{command}{x:.2f},{y:.2f}")

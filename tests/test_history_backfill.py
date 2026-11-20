@@ -2,7 +2,7 @@
 
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -205,8 +205,9 @@ class _FakeStorage:
     async def set_backfill_cursor(self, mac, timestamp):
         self._backfill_cursors[mac] = timestamp
 
-    async def add(self, mac, record):
-        self.added.append((mac, record))
+    async def add_history(self, mac, records):
+        self.added.extend((mac, record) for record in records)
+        return len(records)
 
 
 class _FakeSettingsStore:
@@ -348,9 +349,12 @@ async def test_failed_persistence_does_not_advance_backfill_cursor(tmp_path):
     since = "2026-09-24T00:00:00+00:00"
     await storage.set_backfill_cursor(MAC_1, since)
     record = {"mac": MAC_1, "timestamp": "2026-09-25T00:00:00+00:00"}
+    second = {**record, "timestamp": "2026-09-25T00:05:00+00:00"}
     with sqlite3.connect(db) as conn:
-        conn.execute("CREATE TRIGGER fail_insert BEFORE INSERT ON readings BEGIN SELECT RAISE(ABORT, 'write failed'); END")
-    with patch("history_backfill.backfill_tag", new=AsyncMock(return_value=[record])):
+        conn.execute("""CREATE TRIGGER fail_insert BEFORE INSERT ON readings
+            WHEN NEW.timestamp = '2026-09-25T00:05:00+00:00'
+            BEGIN SELECT RAISE(ABORT, 'write failed'); END""")
+    with patch("history_backfill.backfill_tag", new=AsyncMock(return_value=[record, second])):
         with pytest.raises(sqlite3.IntegrityError, match="write failed"):
             await run_backfill_for_known_tags(settings, storage, store)
         assert await storage.get_backfill_cursor(MAC_1) == since
@@ -360,8 +364,54 @@ async def test_failed_persistence_does_not_advance_backfill_cursor(tmp_path):
         with sqlite3.connect(db) as conn:
             conn.execute("DROP TRIGGER fail_insert")
         await run_backfill_for_known_tags(settings, storage, store)
-    assert await storage.get_history(MAC_1) == [record]
+    assert await storage.get_history(MAC_1) == [record, second]
     assert await storage.get_backfill_cursor(MAC_1) > since
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("retention_days", "lookback_days", "cursor_age"), [(0, 10, 0), (3, 3, 4)])
+async def test_manual_backfill_recovers_history_without_requeuing_existing_rows(
+    tmp_path, retention_days, lookback_days, cursor_age,
+):
+    from history_backfill import run_backfill_for_known_tags
+    from settings import SettingsStore
+    from storage import Storage
+
+    now = datetime(2026, 9, 25, 23, 55, tzinfo=timezone.utc)
+    cutoff = now - timedelta(days=lookback_days)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    timestamps = [cutoff + timedelta(minutes=5 * i) for i in range(1, 288 * lookback_days + 1)]
+    raw = [{"timestamp": int(t.timestamp()), "temperature": 22.0} for t in [cutoff, *timestamps]]
+    storage = Storage(db_path=str(tmp_path / "ten-days.db"))
+    store = SettingsStore(settings_path=str(tmp_path / "settings.json"))
+    settings = await store.update(tag_addresses=[MAC_1], db_retention_days=retention_days)
+    existing = {"mac": MAC_1, "timestamp": now.isoformat(), "temperature": 22, "rssi": -65}
+    tied = {**existing, "temperature": 23}
+    await storage.add(MAC_1, existing)
+    await storage.add(MAC_1, tied)
+    await storage.clear_pending(await storage.get_pending())
+    cursor = (now - timedelta(days=cursor_age, hours=1)).isoformat()
+    await storage.set_backfill_cursor(MAC_1, cursor)
+
+    download = AsyncMock(return_value=raw)
+    with patch("history_backfill.datetime", FrozenDateTime), patch("history_backfill.download_history", download):
+        result = await run_backfill_for_known_tags(settings, storage, store, recover_recent_history=True)
+        repeat = await run_backfill_for_known_tags(settings, storage, store, recover_recent_history=True)
+    download.assert_awaited_with(MAC_1, start_time=cutoff)
+    recovered = len(timestamps) - 1
+    assert result == {"succeeded": 1, "failed": 0, "skipped": 0, "recovered": recovered}
+    assert repeat["recovered"] == 0
+    history = await storage.get_history(MAC_1)
+    assert [row["timestamp"] for row in history] == [t.isoformat() for t in timestamps] + [now.isoformat()]
+    assert len({row["timestamp"][:10] for row in history}) == lookback_days
+    assert history[-2:] == [existing, tied]
+    assert len(await storage.get_pending()) == recovered
+    assert await storage.get_backfill_cursor(MAC_1) == (now.isoformat() if cursor > cutoff.isoformat() else cursor)
 
 
 @pytest.mark.asyncio

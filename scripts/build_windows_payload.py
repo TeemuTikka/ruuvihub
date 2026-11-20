@@ -32,8 +32,16 @@ def _extract_runtime(archive: Path, digest: str, destination: Path) -> None:
                 names.add(entry.filename.lower())
                 with bundle.open(entry) as payload, (destination / entry.filename).open("xb") as file:
                     shutil.copyfileobj(payload, file)
-    if not {"python.exe", "license.txt"} <= names:
+    if not {"python.exe", "pythonw.exe", "license.txt"} <= names:
         raise ValueError("embeddable Python ZIP is missing required files")
+
+
+def _prepare_launchers(runtime: Path) -> Path:
+    console = runtime / "python-console.exe"
+    # Keep the scheduled action path recognized by previously installed updaters.
+    (runtime / "python.exe").rename(console)
+    (runtime / "pythonw.exe").rename(runtime / "python.exe")
+    return console
 
 
 def _python_identity(executable: Path, cwd: Path) -> str:
@@ -62,7 +70,7 @@ def build_payload(version: str, archive: Path, digest: str, output: Path, *, roo
         runtime = staged / "runtime"
         runtime.mkdir(parents=True)
         _extract_runtime(archive, digest, runtime)
-        embedded = runtime / "python.exe"
+        embedded = _prepare_launchers(runtime)
         major, minor = sys.version_info[:2]
         if _python_identity(embedded, runtime) != f"AMD64 {major} {minor}":
             raise ValueError("the embedded Python must match the build Python architecture and major/minor version")

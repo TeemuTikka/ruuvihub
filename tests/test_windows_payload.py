@@ -8,7 +8,7 @@ from zipfile import ZipFile
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from build_windows_payload import _extract_runtime
+from build_windows_payload import _extract_runtime, _prepare_launchers
 from windows_launch import _dashboard_url, _tray_icon, prepare_data
 
 
@@ -16,6 +16,7 @@ def test_runtime_archive_hash_checked_before_extraction(tmp_path):
     archive = tmp_path / "python.zip"
     with ZipFile(archive, "w") as bundle:
         bundle.writestr("python.exe", b"fixture")
+        bundle.writestr("pythonw.exe", b"windowed fixture")
         bundle.writestr("LICENSE.txt", b"fixture")
     destination = tmp_path / "runtime"
     destination.mkdir()
@@ -24,6 +25,9 @@ def test_runtime_archive_hash_checked_before_extraction(tmp_path):
     assert not list(destination.iterdir())
     _extract_runtime(archive, hashlib.sha256(archive.read_bytes()).hexdigest(), destination)
     assert (destination / "python.exe").read_bytes() == b"fixture"
+    console = _prepare_launchers(destination)
+    assert console.read_bytes() == b"fixture"
+    assert (destination / "python.exe").read_bytes() == b"windowed fixture"
 
 
 @pytest.mark.parametrize("name", ["../python.exe", "python.exe:stream", "LICENSE.TXT", "some\\python.exe"])

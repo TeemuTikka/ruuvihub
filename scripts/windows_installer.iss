@@ -26,7 +26,7 @@ SolidCompression=yes
 
 [Files]
 Source: "{#PayloadDirectory}\*"; DestDir: "{tmp}\payload"; Flags: dontcopy noencryption recursesubdirs
-Source: "windows_update.cmd"; DestDir: "{app}"; DestName: "ruuvihub-update.cmd"; Check: not IsUpdate
+Source: "windows_update.cmd"; DestDir: "{app}"; DestName: "ruuvihub-update.cmd"; Flags: ignoreversion
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\releases"
@@ -56,9 +56,14 @@ begin
 end;
 
 function RunHelper(const ReleaseDir, Params: String; var ExitCode: Integer): Boolean;
+var
+  Python: String;
 begin
   ExitCode := -1;
-  Result := Exec(ReleaseDir + '\runtime\python.exe',
+  Python := ReleaseDir + '\runtime\python-console.exe';
+  if not FileExists(Python) then
+    Python := ReleaseDir + '\runtime\python.exe';
+  Result := Exec(Python,
     '-I -B "' + ReleaseDir + '\setup.py" ' + Params,
     ReleaseDir, SW_HIDE, ewWaitUntilTerminated, ExitCode) and (ExitCode = 0);
   if not Result then

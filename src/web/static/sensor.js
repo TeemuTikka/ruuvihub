@@ -96,7 +96,6 @@
           x: {
             grid: { color: "#2a3746" },
             type: "linear",
-            reverse: true,
             min: Date.parse(history.since),
             max: Date.parse(history.until),
             ticks: {

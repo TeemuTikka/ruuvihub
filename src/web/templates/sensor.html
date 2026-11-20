@@ -23,14 +23,14 @@
       </nav>
       <a href="/api/history/{{ mac }}/export?range={{ range }}">Download CSV</a>
     </div>
-    <p class="card-meta">Now → past {{ range_options | selectattr('0', 'equalto', range) | map(attribute='1') | first | default(range) }} · Measured history</p>
+    <p class="card-meta">Past {{ range_options | selectattr('0', 'equalto', range) | map(attribute='1') | first | default(range) }} → now · Measured history</p>
     <p id="history-status" class="card-meta" role="status"></p>
   </section>
   <div class="weather-charts">
     {% for field, title, unit in [('temperature', 'Temperature', '°C'), ('humidity', 'Humidity', '%'), ('pressure', 'Pressure', 'hPa')] %}
     <section class="weather-chart-panel">
       <h2>{{ title }} <span>{{ unit }}</span></h2>
-      <div class="weather-chart"><canvas id="chart-{{ field }}" role="img" aria-label="{{ title }} history, newest on the left"></canvas></div>
+      <div class="weather-chart"><canvas id="chart-{{ field }}" role="img" aria-label="{{ title }} history, newest on the right"></canvas></div>
     </section>
     {% endfor %}
   </div>

@@ -392,8 +392,9 @@ for implementation details and protocol references):
   backfilled and are skipped.
 - Only recovers **temperature/humidity/pressure** (no battery, RSSI, or
   acceleration — those aren't stored on-device).
-- Can only recover gaps up to the tag's on-device log depth (~12 days at
-  firmware defaults) — anything older is permanently gone.
+- A standard RuuviTag keeps about 10 days of measurements at five-minute
+  intervals ([RuuviTag specifications](https://ruuvi.com/ruuvitag/)).
+  Readings that have already rolled out of the tag's log cannot be recovered.
 
 **On by default (startup pass only).** Connecting to a tag via GATT briefly monopolizes the
 BLE radio, pausing passive scanning while it runs (RuuviHub serializes
@@ -414,6 +415,13 @@ page's **History Backfill** section:
 
 Backfilled readings are stored and displayed exactly like normal scans —
 no separate view or export needed.
+
+**Sync history now** on the Config page looks back 10 days, even if an
+earlier sync already advanced the tag's cursor. It inserts only missing
+readings. A shorter database retention setting limits the manual lookback.
+Startup and periodic sync still use the saved cursor. If a tag times out
+while transferring a full log, you can increase the **Per-tag history pull
+timeout** (120 seconds by default).
 
 A history download is saved only after the tag sends its end-of-log marker.
 Interrupted or stalled transfers leave the backfill cursor unchanged for a

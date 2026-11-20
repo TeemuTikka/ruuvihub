@@ -87,12 +87,16 @@ def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, m
     assert card["temperature_high"] == 20
     assert card["reading_count"] == 3
     assert card["trend_path"].count("M") >= 2  # Actual gaps remain visible.
+    assert card["trend_path"].startswith("M2.00,62.00")
+    assert card["trend_path"].endswith("L238.00,26.00")
     page = client.get(f"/?hours={hours}").text
     assert f"Last {hours}h · Low / high" in page
     assert "Day low / high" not in page and "Night low / high" not in page
     assert "Change /" not in page
     assert 'class="trend-grid"' in page
     assert 'class="trend-values"' in page
+    assert f'aria-label="Temperature over the last {hours} hours; now on the right"' in page
+    assert f'<span class="trend-since">{hours}h ago</span><span>Now</span>' in page
     assert '<text x="-6" y="2">20.0 °C</text>' in page
     assert '<text x="-6" y="32">7.5 °C</text>' in page
     assert '<text x="-6" y="62">-5.0 °C</text>' in page

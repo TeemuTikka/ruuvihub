@@ -179,6 +179,7 @@
       </div>
       <div class="field field-full">
         <button type="submit" form="sync-now-form" class="secondary" {% if backfill_sync_status.running %}disabled{% endif %}>Sync history now</button>
+        <p class="hint">Recover missing readings from up to 10 days of history still stored on each reachable tag.</p>
       </div>
 
       {% if disabled_backfill_tags %}
