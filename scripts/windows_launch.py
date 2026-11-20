@@ -7,6 +7,44 @@ import os
 from pathlib import Path
 import sys
 from tempfile import NamedTemporaryFile
+from threading import Event
+import webbrowser
+
+
+def _dashboard_url(settings_path: Path) -> str:
+    try:
+        settings = json.loads(settings_path.read_bytes())
+    except (OSError, ValueError):
+        settings = {}
+    if not isinstance(settings, dict):
+        settings = {}
+    if settings.get("https_enabled") is False:
+        return "http://127.0.0.1:8080/"
+    port = settings.get("https_port", 8443)
+    if type(port) is not int or not 1 <= port <= 65535:
+        port = 8443
+    return f"https://127.0.0.1:{port}/"
+
+
+def _tray_icon(settings_path: Path):
+    from PIL import Image, ImageDraw
+    from pystray import Icon, Menu, MenuItem
+
+    image = Image.new("RGBA", (64, 64))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((2, 2, 61, 61), radius=13, fill="#17675e")
+    draw.line(((12, 42), (23, 30), (32, 36), (49, 18)), fill="white", width=5, joint="curve")
+    return Icon("RuuviHub", image, "RuuviHub", Menu(
+        MenuItem("Open dashboard", lambda: webbrowser.open(_dashboard_url(settings_path)), default=True),
+    ))
+
+
+def _detach_console() -> None:
+    import ctypes
+
+    sys.stdout = sys.stderr = open(os.devnull, "w", encoding="utf-8")
+    # Keep the existing task action so the v2.0.0 updater can recognize it.
+    ctypes.windll.kernel32.FreeConsole()
 
 
 def prepare_data(release: Path, data: Path) -> Path:
@@ -57,6 +95,22 @@ if __name__ == "__main__":
     os.environ["CONFIG_PATH"] = str(data / "config.json")
     os.environ["SETTINGS_PATH"] = str(data / "settings.local.json")
     os.environ.pop("RUUVIHUB_DISABLE_HTTPS", None)
+    _detach_console()
     from main import main
 
-    asyncio.run(main())
+    tray = None
+    ready = Event()
+
+    def show(icon):
+        try:
+            icon.visible = True
+        finally:
+            ready.set()
+
+    try:
+        tray = _tray_icon(data / "settings.local.json")
+        tray.run_detached(setup=show)
+        asyncio.run(main())
+    finally:
+        if tray is not None and ready.wait(timeout=5):
+            tray.stop()

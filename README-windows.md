@@ -14,6 +14,13 @@ requires an internet connection to check the release signature and
 installer digest. The installer is not Authenticode-signed, so Windows
 may warn that the publisher is unknown. Don't run copies from mirrors.
 
+Tray-enabled releases run in the notification area instead of keeping a
+console window open. Look for **RuuviHub** under the taskbar's hidden icons
+if it is not shown directly. Click the icon or choose **Open dashboard**
+from its menu. Logs still go to `%LOCALAPPDATA%\RuuviHub\logs` by default.
+The original `v2.0.0` installer still opens a console. With a tray-enabled
+release, Windows may briefly show a console as the scheduled task starts.
+
 The app and its Python runtime install under
 `%LOCALAPPDATA%\Programs\RuuviHub`; data lives under `%LOCALAPPDATA%\RuuviHub`.
 Use these commands in PowerShell while signed in:

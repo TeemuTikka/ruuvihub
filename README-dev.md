@@ -930,6 +930,9 @@ download and signature verification code with Pi, not the activation logic.
 Scheduler action. `scripts/windows_activation.py` records the switch,
 checks the selected version on loopback, and restores the previous task
 action on failure without restoring older persistent data.
+The installed launcher detaches from its console and uses Windows-only
+pystray and Pillow dependencies for a notification-area icon that opens
+the local dashboard. The task action stays compatible with `v2.0.0`.
 `scripts/build_windows_installer.py` packages that payload with Inno Setup
 and embeds `RELEASE_SIGNING_PUBLIC_KEY`. The installer verifies its own
 signed metadata and file digest before calling `scripts/windows_setup.py`

@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from build_windows_payload import _extract_runtime
-from windows_launch import prepare_data
+from windows_launch import _dashboard_url, _tray_icon, prepare_data
 
 
 def test_runtime_archive_hash_checked_before_extraction(tmp_path):
@@ -62,3 +62,29 @@ def test_version_switch_keeps_persistent_settings_and_config(tmp_path):
         assert not list(data.glob(".config-*"))
         with pytest.raises(ValueError, match="must be separate"):
             prepare_data(release, release / "data")
+
+
+@pytest.mark.parametrize(("settings", "expected"), [
+    ('{"https_port": 9443}', "https://127.0.0.1:9443/"),
+    ('{"https_enabled": false, "https_port": 9443}', "http://127.0.0.1:8080/"),
+    ('{"https_port": "invalid"}', "https://127.0.0.1:8443/"),
+    ("invalid JSON", "https://127.0.0.1:8443/"),
+])
+def test_tray_dashboard_targets_local_web_server(tmp_path, settings, expected):
+    path = tmp_path / "settings.local.json"
+    path.write_text(settings, encoding="utf-8")
+    assert _dashboard_url(path) == expected
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows notification area")
+def test_tray_offers_only_dashboard_and_reads_current_settings(tmp_path, monkeypatch):
+    path = tmp_path / "settings.local.json"
+    opened = []
+    monkeypatch.setattr("windows_launch.webbrowser.open", opened.append)
+    tray = _tray_icon(path)
+    item, = tray.menu
+    assert item.text == "Open dashboard"
+    assert item.default
+    path.write_text('{"https_port": 9443}', encoding="utf-8")
+    item(tray)
+    assert opened == ["https://127.0.0.1:9443/"]
