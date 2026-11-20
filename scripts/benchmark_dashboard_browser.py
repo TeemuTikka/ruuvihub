@@ -45,7 +45,7 @@ def verify(page):
         '<div class="card-extremes"><span class="card-window"></span><strong class="card-range"></strong></div>' +
         '<div class="card-trend"><svg viewBox="-64 -8 304 80" role="img"><g class="trend-grid" aria-hidden="true"><line x1="2" x2="238" y1="2" y2="2" /><line x1="2" x2="238" y1="32" y2="32" /><line x1="2" x2="238" y1="62" y2="62" /></g><g class="trend-values"><text x="-6" y="2"></text><text x="-6" y="32"></text><text x="-6" y="62"></text></g><path /></svg>' +
         '<p class="trend-empty">Temperature trend unavailable in this window</p>' +
-        '<div class="trend-axis"><span>Now</span><span class="trend-since"></span></div></div>' +
+        '<div class="trend-axis"><span class="trend-since"></span><span>Now</span></div></div>' +
         '<span class="card-history-link">View history →</span></a></article>';
       const initial = grid.firstElementChild;
       renderCards([a, b]);
@@ -55,6 +55,11 @@ def verify(page):
       check(initial.querySelectorAll('dd')[1].textContent === '—', 'Null metric mismatch');
       check(getComputedStyle(initial.querySelector('.stale-flag')).display === 'none', 'Fresh card shows stale flag');
       check(initial.querySelector('.trend-values').textContent === '22.0 °C19.5 °C17.0 °C', 'Temperature scale missing');
+      for (const card of grid.children) {
+        const [start, end] = card.querySelector('.trend-axis').children;
+        check(start.textContent === '24h ago' && end.textContent === 'Now', 'Reversed trend labels');
+        check(card.querySelector('svg').getAttribute('aria-label').endsWith('now on the right'), 'Incorrect trend description');
+      }
       const focused = initial.querySelector("a");
       focused.focus();
       const observer = new MutationObserver(() => {});

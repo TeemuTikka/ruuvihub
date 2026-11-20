@@ -480,7 +480,7 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   the HTML and `/api/current`; unsupported values fall back to 24. Windows
   subtract elapsed hours in UTC, so midnight and daylight-saving changes do
   not create empty or shortened periods. Trends use actual sample timestamps
-  and break at missing values and segment changes, with now on the left.
+  and break at missing values and segment changes, with now on the right.
   Temperature scale labels and guide lines show the high, midpoint, and low
   used to draw each trend; polling updates the labels with the graph.
   A single View history link opens that hourly range on the sensor page.
@@ -510,8 +510,8 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   nothing.
   The sensor view defaults to the last 3 days, with 6/12/24/48/72-hour and
   3/7/14/30/180/360-day controls. Dashboard cards link to their hourly window. It displays the latest reading in that window
-  above temperature, humidity and pressure charts, with now on the left and
-  older readings to the right. Polling reuses chart instances and refreshes
+  above temperature, humidity and pressure charts, with now on the right and
+  older readings to the left. Polling reuses chart instances and refreshes
   the bounds through now. Legacy 1h/24h/all URLs and battery CSV fields
   remain supported.
   The chart request adds `?chart=true` to receive `{records, since, until}`.

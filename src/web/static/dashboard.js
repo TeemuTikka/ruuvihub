@@ -141,7 +141,7 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
         '<div class="card-extremes"><span class="card-window"></span><strong class="card-range"></strong></div>' +
         '<div class="card-trend"><svg viewBox="-64 -8 304 80" role="img"><g class="trend-grid" aria-hidden="true"><line x1="2" x2="238" y1="2" y2="2" /><line x1="2" x2="238" y1="32" y2="32" /><line x1="2" x2="238" y1="62" y2="62" /></g><g class="trend-values"><text x="-6" y="2"></text><text x="-6" y="32"></text><text x="-6" y="62"></text></g><path /></svg>' +
         '<p class="trend-empty">Temperature trend unavailable in this window</p>' +
-        '<div class="trend-axis"><span>Now</span><span class="trend-since"></span></div></div>' +
+        '<div class="trend-axis"><span class="trend-since"></span><span>Now</span></div></div>' +
         '<span class="card-history-link">View history →</span></a>';
       entry = rememberCard(node);
       dashboardNodes.set(card.mac, entry);
@@ -175,7 +175,7 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
     });
     const path = card.trend_path || "";
     if (entry.path.getAttribute("d") !== path) entry.path.setAttribute("d", path);
-    const label = `Temperature over the last ${historyHours} hours; now on the left`;
+    const label = `Temperature over the last ${historyHours} hours; now on the right`;
     if (entry.svg.getAttribute("aria-label") !== label) entry.svg.setAttribute("aria-label", label);
     setHidden(entry.svg, !path);
     setHidden(entry.empty, !!path);
