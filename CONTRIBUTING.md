@@ -17,15 +17,19 @@ with clear tests and documentation are easiest to review.
 ## Set up and run checks
 
 Use Python 3.11, matching the project CI configuration. From the repository
-root, create a virtual environment and install runtime and test dependencies:
+root, create a virtual environment and install the test requirements. This
+file includes both runtime and test dependencies:
 
 ```bash
 python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 # macOS/Linux:        source .venv/bin/activate
-python -m pip install -r requirements.txt
 python -m pip install -r tests/requirements.txt
 ```
+
+`pyproject.toml` and `uv.lock` are authoritative; the pip requirements files
+are generated, hash-verified exports. See the dependency update instructions
+in [README-dev.md](README-dev.md) when changing dependencies.
 
 Run the hardware-free tests before opening a pull request:
 

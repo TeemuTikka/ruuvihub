@@ -1,5 +1,12 @@
 # Copilot Instructions for RuuviHub
 
+## Testing on Windows 11
+
+Follow the [native Windows test workflow](../README-windows.md#agent-validation-on-windows-11)
+for Windows behavior and the [Docker workflow](../README-dev.md#testing-on-linux-via-docker-optional)
+for Linux and Pi dependency checks. Don't restart Docker, shut down WSL, or
+sign out a shared host without approval.
+
 ## Documentation stays in sync with code
 
 This repo has multiple README files, each covering a different concern:
@@ -43,7 +50,7 @@ CRLF scripts. Editing tools on Windows can silently reintroduce CRLF.
 1. After editing, verify line endings didn't flip to CRLF — e.g.
    `git diff --stat` should show a normal line-count diff, not a
    "CRLF will be replaced by LF" warning from git, and
-   `(Get-Content <file> -Raw) -match "`r`n"` should be `False`.
+   in PowerShell, `(Get-Content <file> -Raw) -match "`r`n"` should be `False`.
 2. If CRLF crept in, normalize back to LF before committing.
 3. Prefer verifying syntax with `bash -n scripts/<file>.sh` (via WSL if
    on Windows, since native Windows bash isn't available) rather than

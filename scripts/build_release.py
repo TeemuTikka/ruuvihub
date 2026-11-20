@@ -2,7 +2,9 @@
 """Build the same release archive locally and in CI, without local runtime state."""
 
 import argparse
+import hashlib
 import io
+import json
 import os
 from pathlib import Path
 import re
@@ -15,6 +17,7 @@ _REQUIRED = (
     "THIRD_PARTY_NOTICES.md", "third_party_licenses", "LICENSE", "SECURITY.md",
 )
 _PRIVATE_DIRECTORIES = {".git", ".venv", "certs", "logs"}
+_VERSION = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 _REQUIRED_FILES = (
     "src/main.py", "scripts/install.sh", "scripts/update.sh", "scripts/rollback.sh",
     "scripts/uninstall.sh", "scripts/lib.sh", "scripts/ruuvihub.service.template",
@@ -22,14 +25,7 @@ _REQUIRED_FILES = (
 )
 
 
-def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path(".")) -> Path:
-    if re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version) is None:
-        raise ValueError("version must be a stable vX.Y.Z tag")
-    for name in _REQUIRED_FILES:
-        if not (root / name).is_file():
-            raise FileNotFoundError(f"Missing required release input: {name}")
-    sources = [(root / name, name) for name in _REQUIRED]
-    sources.append((root / "tests/test_connection.py", "scripts/test_connection.py"))
+def collect_release_files(root: Path, sources: list[tuple[Path, str]]) -> list[tuple[Path, Path]]:
     files = []
     for source, destination in sources:
         if not source.exists():
@@ -46,6 +42,18 @@ def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path("."))
             if path.is_file():
                 target = Path(destination) / path.relative_to(source) if source.is_dir() else Path(destination)
                 files.append((path, target))
+    return files
+
+
+def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path(".")) -> Path:
+    if _VERSION.fullmatch(version) is None:
+        raise ValueError("version must be a stable vX.Y.Z tag")
+    for name in _REQUIRED_FILES:
+        if not (root / name).is_file():
+            raise FileNotFoundError(f"Missing required release input: {name}")
+    sources = [(root / name, name) for name in _REQUIRED]
+    sources.append((root / "tests/test_connection.py", "scripts/test_connection.py"))
+    files = collect_release_files(root, sources)
     output_dir.mkdir(parents=True, exist_ok=True)
     archive_path = output_dir / f"ruuvihub-{version}.tar.gz"
     fd, temporary_path = tempfile.mkstemp(dir=output_dir, suffix=".tar.gz")
@@ -65,9 +73,61 @@ def build_archive(version: str, root: Path = ROOT, output_dir: Path = Path("."))
     return archive_path
 
 
+def _describe_artifact(path: Path) -> dict:
+    with path.open("rb") as artifact:
+        return {"name": path.name, "size": os.fstat(artifact.fileno()).st_size,
+                "sha256": hashlib.file_digest(artifact, "sha256").hexdigest()}
+
+
+def build_metadata(
+    version: str, archive_path: Path, minimum_updater_version: str, *, windows_installer: Path | None = None,
+) -> bytes:
+    """Create unsigned metadata for a locally built release archive."""
+    if _VERSION.fullmatch(version) is None or _VERSION.fullmatch(minimum_updater_version) is None:
+        raise ValueError("versions must be stable vX.Y.Z tags")
+    if archive_path.name != f"ruuvihub-{version}.tar.gz":
+        raise ValueError("archive name must match the release version")
+
+    version_member = f"ruuvihub-{version}/VERSION"
+    with tarfile.open(archive_path, "r:gz") as archive:
+        members = [member for member in archive if member.name == version_member]
+        if len(members) != 1 or not members[0].isfile() or members[0].size > 128:
+            raise ValueError("archive must contain exactly one regular VERSION file")
+        version_file = archive.extractfile(members[0])
+        if version_file is None or version_file.read() != f"{version}\n".encode("ascii"):
+            raise ValueError("archive VERSION does not match the release version")
+
+    artifacts = {"linux-arm64": _describe_artifact(archive_path)}
+    if windows_installer is not None:
+        from release_metadata import WINDOWS_PLATFORM, windows_installer_name
+
+        if windows_installer.name != windows_installer_name(version):
+            raise ValueError("Windows installer name must match the release version")
+        artifacts[WINDOWS_PLATFORM] = _describe_artifact(windows_installer)
+    metadata = {
+        "version": version,
+        "minimum_updater_version": minimum_updater_version,
+        "artifacts": artifacts,
+    }
+    return (json.dumps(metadata, indent=2) + "\n").encode("utf-8")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("version", help="Stable release tag, e.g. v1.1.0")
     parser.add_argument("--output-dir", type=Path, default=Path("."))
+    parser.add_argument("--windows-installer", type=Path, help="Include this installer in the release metadata")
+    parser.add_argument(
+        "--minimum-updater-version",
+        help="Also write release-metadata.json for this minimum updater version",
+    )
     args = parser.parse_args()
-    print(build_archive(args.version, output_dir=args.output_dir))
+    if args.windows_installer and not args.minimum_updater_version:
+        parser.error("--windows-installer requires --minimum-updater-version")
+    archive_path = build_archive(args.version, output_dir=args.output_dir)
+    if args.minimum_updater_version:
+        metadata = build_metadata(
+            args.version, archive_path, args.minimum_updater_version, windows_installer=args.windows_installer,
+        )
+        (args.output_dir / "release-metadata.json").write_bytes(metadata)
+    print(archive_path)

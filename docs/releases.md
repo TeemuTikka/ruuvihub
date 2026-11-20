@@ -28,6 +28,7 @@ to keep personal contact addresses out of public Git metadata.
    `LICENSE`, `SECURITY.md`, the bootstrap configuration, and complete
    third-party notices must accompany the application. The builder rejects
    private runtime files inside packaged folders.
+   Configure the [release signing environment](#release-signing) before tagging.
 5. Tag the reviewed initial `main` commit and push only that tag:
 
    ```bash
@@ -36,7 +37,8 @@ to keep personal contact addresses out of public Git metadata.
    ```
 
    This invokes `release.yml`, which reruns the hardware-free tests and
-   publishes the release archive. Check the uploaded artifact and release page.
+   publishes the signed Pi archive, Windows installer, metadata, and Pi
+   bootstrap. Check the assets and release page.
 6. Set `AUTO_RELEASE_ENABLED` to `true` under repository Settings → Secrets
    and variables → Actions → Variables when automatic patch releases are wanted.
 
@@ -55,3 +57,60 @@ and automatic version tags on the same change.
 Source checkouts report `dev`; CI-generated archives contain a `VERSION`
 file with their tag. The live hardware test `tests/test_connection.py`
 remains excluded from the normal CI suite.
+
+Before publication, release CI also finds the preceding published stable
+tag and runs `scripts/check_persisted_upgrade.py` with separate Python
+environments. It seeds a disposable SQLite database and settings with the
+previous app, starts the candidate and writes through it, then starts the
+previous app again and verifies its writes survive reopening the candidate.
+The probe disables BLE, upload and web-server loops. Failures block
+publication; the first release skips this check if no predecessor exists.
+
+## Release signing
+
+The publishing workflow uses a protected GitHub Actions environment named
+`release-signing`. Restrict it to trusted release branches and tags (including
+`main` for automatic patch releases). Store the raw 32-byte Ed25519 private key,
+hex-encoded, as the environment secret `RELEASE_SIGNING_PRIVATE_KEY`. Store the
+matching raw 32-byte public key, also hex-encoded, as the environment variable
+`RELEASE_SIGNING_PUBLIC_KEY`. Generate the pair on a trusted maintainer machine
+and keep the private key out of the checkout, terminal history, and logs. Grant
+access to the environment only to trusted release maintainers and workflows.
+
+The workflow signs the exact bytes of `release-metadata.json`, verifies the
+signature against the configured public key, and checks the archive against the
+metadata. GitHub CLI uploads the Pi archive, Windows x64 installer, JSON, detached
+`release-metadata.json.sig`, and `ruuvihub-pi-bootstrap.pyz` to a draft before
+publishing. The bootstrap includes the same public key and is initially
+trusted via download from the project's GitHub release over validated HTTPS.
+Missing or mismatched keys stop publication. If uploading fails, inspect the
+draft before retrying.
+The metadata records the version, minimum updater version, platform artifact
+name, byte size and SHA-256 hash. Verification takes a trusted public key, not
+one downloaded from the same GitHub release. The managed Pi bootstrap and
+updater and the Windows installer and updater verify these signatures. The
+legacy Pi `install.sh`, `update.sh`, and `rollback.sh` scripts do not.
+
+The managed Pi staging helper requests metadata and artifacts from the
+project's GitHub Releases URLs and accepts asset redirects only to GitHub's
+`release-assets.githubusercontent.com` host over HTTPS. Pi archives must
+contain regular files under `ruuvihub-vX.Y.Z/` and an exact `VERSION`
+matching the signed tag.
+
+To build locally without a signing key:
+
+```bash
+python scripts/build_release.py v1.1.0 --output-dir dist --minimum-updater-version v1.0.0
+```
+
+The local metadata alone is unsigned and must not be used to authenticate an update.
+
+The Windows job builds the installer on a Windows runner using a pinned,
+hash-verified embeddable Python ZIP and Inno Setup compiler. It uses the
+public-key variable from the protected `release-signing` environment;
+the signing step alone receives the private-key secret. The metadata
+builder can also cover a locally compiled Windows installer: run it
+with `--windows-installer` and the `ruuvihub-vX.Y.Z-windows-x64.exe` file.
+Keep the installer beside the metadata and Pi archive when signing; signing
+checks the exact bytes of both artifacts. This does not Authenticode-sign
+the Windows executable.

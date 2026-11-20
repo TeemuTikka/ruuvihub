@@ -11,6 +11,10 @@ This file gives repository-level guidance to coding agents that support
 - Run relevant tests. The routine full suite is
   `python -m pytest tests/ -q --ignore=tests/test_connection.py`; that excluded
   test requires a Bluetooth adapter and a nearby RuuviTag.
+- On Windows 11, use the [native test workflow](README-windows.md#agent-validation-on-windows-11)
+  for Windows behavior and the [Docker workflow](README-dev.md#testing-on-linux-via-docker-optional)
+  for Linux checks. Check Docker's server before running containers; don't
+  restart Docker, shut down WSL, or sign out a shared host without approval.
 - Do not include credentials, `settings.local.json`, local databases, or private
   sensor data in prompts, source changes, or commits.
 - Follow the repository-specific documentation and shell-script guidance in

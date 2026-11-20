@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Release status · RuuviHub{% endblock %}
+{% block content %}
+<h1>Release status</h1>
+{% include "config_nav.html" %}
+<section class="form-panel" aria-label="Release information">
+  <dl>
+    <dt>Installed version</dt>
+    <dd>{{ release.current_version }}</dd>
+    <dt>Latest stable version</dt>
+    <dd>
+      {% if release.latest_version %}
+      {{ release.latest_version }} (<a href="{{ release.release_notes }}">Release notes</a>)
+      {% else %}
+      Not available
+      {% endif %}
+    </dd>
+    <dt>Last completed check</dt>
+    <dd>{{ release.last_checked_at | format_timestamp }}</dd>
+  </dl>
+  {% if release.failed %}
+  <p class="error">The last check failed. {% if release.latest_version %}Showing the last known release.{% endif %}</p>
+  {% elif release.latest_version %}
+    {% if release.update_available %}<p>A newer stable release is available.</p>
+    {% elif release.current_version == "dev" %}<p>Development checkouts are notification-only.</p>
+    {% else %}<p>No newer stable release was found.</p>{% endif %}
+  {% elif release.last_checked_at %}
+  <p>No stable release was found.</p>
+  {% endif %}
+  {% if release.checking %}
+  <p role="status">Checking GitHub. <a href="/config/releases">Refresh status</a></p>
+  {% endif %}
+  <form method="post" action="/config/releases">
+    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+    <button type="submit"{% if release.checking %} disabled{% endif %}>Check now</button>
+  </form>
+  <p class="hint">This page does not install updates.</p>
+</section>
+{% endblock %}

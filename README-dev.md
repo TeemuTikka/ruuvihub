@@ -17,14 +17,13 @@ that contains `src/`, `tests/`, and `requirements.txt`.
 
 1. Read the task and agree on what a finished change should do. For a
    GitHub issue, use its description and acceptance criteria as the scope.
-2. Create and activate a virtual environment, then install both runtime
-   and test dependencies:
+2. Create and activate a virtual environment, then install the test
+   requirements. This file includes both runtime and test dependencies:
 
    ```bash
    python -m venv .venv
    # Windows PowerShell: .venv\Scripts\Activate.ps1
    # macOS/Linux:        source .venv/bin/activate
-   python -m pip install -r requirements.txt
    python -m pip install -r tests/requirements.txt
    ```
 
@@ -40,6 +39,19 @@ that contains `src/`, `tests/`, and `requirements.txt`.
    result. Run `python -m pytest tests/test_connection.py -q` only when a
    Bluetooth adapter and a RuuviTag are available; that test uses real
    hardware.
+
+`pyproject.toml` is the dependency source of truth and `uv.lock` pins the
+resolved versions. `requirements.txt` and `tests/requirements.txt` are
+generated, hash-verified exports for pip-based installs. Install the pinned
+uv version and regenerate them from the repository root after changing
+dependencies:
+
+```bash
+python -m pip install uv==0.13.9
+python -m uv lock
+python -m uv export --locked --no-emit-project --no-default-groups --no-dev -o requirements.txt
+python -m uv export --locked --no-emit-project --no-default-groups --group test -o tests/requirements.txt
+```
 
 For Windows-specific setup and troubleshooting, see
 [README-windows.md](README-windows.md). For how the application is put
@@ -57,6 +69,13 @@ files, and private sensor data out of prompts and generated commits.
 | GitHub Copilot | Open this repository in VS Code, enable Copilot, and use Copilot Chat. Repository guidance is in [`.github/copilot-instructions.md`](.github/copilot-instructions.md). |
 | OpenAI Codex CLI | Install and sign in to Codex CLI, open a terminal at the repository root, then run `codex`. Codex CLI automatically loads this repository's [`AGENTS.md`](AGENTS.md); see the [official AGENTS.md guidance](https://developers.openai.com/api/docs/guides/latest-model#using-agents-md). |
 | Other coding agents | Open the repository root as the workspace and provide this guide, the relevant issue, and the test command. The project has no provider-specific setup requirement for other agents. |
+
+Workspace-specific guidance in [`.github/instructions/`](.github/instructions/)
+covers settings, web administration/security, and sensor data. The on-demand
+skills in [`.agents/skills/`](.agents/skills/) include Pi deployment and
+dashboard validation workflows. Automatic discovery and file-scoped
+instructions depend on the agent/tool; provide these files as context
+explicitly when the tool does not load them.
 
 For example, give your agent a bounded task and a way to check its work:
 
@@ -524,10 +543,16 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   remains readable but has no dashboard control.
   Metrics can all be deselected; new sensors remain visible when they
   arrive after a form was loaded. System saves do not change dashboard
-  preferences. The configuration pages share navigation between system
-  and dashboard settings.
+  preferences.
+- **`releases.py`** — admin-only `GET/POST /config/releases`. The POST
+  requires CSRF and starts a check without waiting on GitHub.
+  `src/release_check.py` checks the public latest-release API at app startup
+  and every 24 hours. HTTP requests run off the event loop with timeouts
+  and checks never overlap. The app keeps the last result in memory; on
+  failure, it marks any previously seen release as stale. No settings are
+  written and the web UI never installs releases.
 - **`templates/`** — `base.html` (shared layout + admin-only
-  "using default credentials" reminder, Settings menu linking directly to Dashboard settings and System settings, Logs toggle,
+  "using default credentials" reminder, Settings menu, Logs toggle,
   logout form, and slide-in `#log-panel` drawer; public pages show an
   admin login link instead). `login.html` hides the shared navigation.
   `base.html`'s `<head>` also has a small synchronous
@@ -539,8 +564,8 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   inline script right after the checkbox sets its initial `.checked`
   from that same `<html>` class (not a second `localStorage` read) so
   the two inline scripts can't disagree. `login.html`, `dashboard.html`,
-  `sensor.html`, `config.html`, `dashboard_config.html`, and their shared
-  `config_nav.html` navigation.
+  `sensor.html`, `config.html`, `dashboard_config.html`, `releases.html`,
+  and the admin pages' shared `config_nav.html` navigation.
 - **`static/`** — `style.css` (minimal, no framework; `--topbar-height`
   custom property sizes the sticky `.topbar` and is also used as
   `.log-panel`'s `top` offset so the drawer starts exactly below the
@@ -714,22 +739,76 @@ or without `ruuvitag-sensor`/`bleak` installed at all.
 
 ### Testing on Linux via Docker (optional)
 
-Not required for BLE itself (that works on Windows directly), but
-useful to sanity-check Linux-specific behavior (e.g. before deploying to
-a Pi) or to reproduce a Linux-only bug without a second machine:
+On Windows 11, use Docker Desktop's Linux engine for Linux-only behavior
+and [native Windows tests](README-windows.md#agent-validation-on-windows-11)
+for Windows behavior. Run these checks in PowerShell before starting a
+container:
 
-```bash
-docker run --rm -it -v "${PWD}:/app" -w /app python:3.12-slim bash
-# inside the container:
-apt-get update && apt-get install -y build-essential libglib2.0-dev
-pip install -r requirements.txt
-pip install -r tests/requirements.txt
-python -m pytest tests/ -q --ignore=tests/test_connection.py
+```powershell
+docker context show
+docker version --format '{{.Client.Version}} / {{.Server.Version}} ({{.Server.Os}}/{{.Server.Arch}})'
 ```
 
-Actual BLE scanning still needs a Bluetooth adapter passed through to
-the container (not covered here — for real hardware testing on Linux,
-prefer running directly on a Pi per [README-pi.md](README-pi.md)).
+Expect a responding Linux server (normally `desktop-linux`). A running
+Docker Desktop process or a client version alone is not enough. If the
+server returns HTTP 500 or is unreachable, check Docker Desktop's status
+and `wsl --status` / `wsl -l -v`. Ask before restarting Docker Desktop,
+shutting down WSL, or rebooting a shared machine.
+
+From the repository root, test a committed snapshot in a disposable
+Linux/amd64 container using the same Python minor version as CI. Mount
+only the Git archive read-only so the container doesn't see the Windows
+venv, ignored settings and databases, or other local files:
+
+```powershell
+$archive = Join-Path ([System.IO.Path]::GetTempPath()) (
+    'ruuvihub-' + [guid]::NewGuid().ToString('N') + '.tar'
+)
+try {
+    git archive --format=tar --output=$archive HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'git archive failed' }
+
+    docker run --rm --platform linux/amd64 `
+        --mount "type=bind,source=$archive,target=/source.tar,readonly" `
+        python:3.11-slim sh -ec 'mkdir /app; tar -xf /source.tar -C /app; cd /app; python -m pip install --require-hashes --only-binary=:all: -r tests/requirements.txt; python -m pytest tests/ -q --ignore=tests/test_connection.py'
+    if ($LASTEXITCODE -ne 0) { throw 'Docker validation failed' }
+} finally {
+    Remove-Item -LiteralPath $archive -ErrorAction SilentlyContinue
+}
+```
+
+`git archive HEAD` excludes uncommitted changes. To test those in Docker,
+copy the changed test inputs into a clean snapshot first; don't mount your
+whole worktree or report a `HEAD` run as validation of local edits. No
+compiler or extra OS packages are needed for the locked wheel-only suite.
+
+For Pi wheel and venv preparation, replace the `docker run` invocation
+in the `try` block with an interactive 64-bit Debian container:
+
+```powershell
+docker run --rm -it --platform linux/arm64 `
+    --mount "type=bind,source=$archive,target=/source.tar,readonly" debian:trixie-slim sh
+```
+
+In the container:
+
+```sh
+set -e
+test "$(uname -m)" = aarch64
+apt-get update && apt-get install -y python3 python3-venv
+mkdir /app
+tar -xf /source.tar -C /app
+cd /app
+install -d -o nobody -g nogroup /tmp/ruuvihub-venvs
+first=$(runuser -u nobody -- /usr/bin/python3 scripts/prepare_pi_venv.py /tmp/ruuvihub-venvs requirements.txt)
+second=$(runuser -u nobody -- /usr/bin/python3 scripts/prepare_pi_venv.py /tmp/ruuvihub-venvs requirements.txt)
+test "$first" = "$second"
+printf 'Reused locked environment: %s\n' "$second"
+exit
+```
+
+These checks do not validate Raspberry Pi hardware, BLE, or systemd
+activation; see [README-pi.md](README-pi.md) for deployment.
 
 ### Inspecting the SQLite database
 
@@ -749,9 +828,9 @@ versioning, packaging, and code scanning (see
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | Main pushes, pull requests to `main`, or manual dispatch | Runs the hardware-free tests on Ubuntu and Windows with Python 3.11. Doesn't tag or publish anything. |
+| `ci.yml` | Main pushes, pull requests to `main`, or manual dispatch | Checks the dependency lock and generated pip exports, then runs the hardware-free tests on Ubuntu and Windows with Python 3.11. Doesn't tag or publish anything. |
 | `autotag.yml` | Push to `main`, when `AUTO_RELEASE_ENABLED` is `true` | Re-runs tests, selects the next stable patch tag with `scripts/next_release_tag.py`, pushes it, and directly invokes `release.yml`. The minimum version is `v1.1.0`; normal patch bumps follow it. A concurrency group serializes runs; commits that are no longer the tip of `main` or already have a stable release tag are skipped. |
-| `release.yml` | Push of a `v*` tag, or invoked by `autotag.yml` | Re-runs tests, builds the archive with `scripts/build_release.py`, and publishes it as a GitHub Release. Version input must be a stable `vX.Y.Z` tag. The archive includes source, scripts, bootstrap config, runtime requirements, `README-pi.md`, a generated `VERSION`, the hardware check as `scripts/test_connection.py`, and third-party license notices. Root `LICENSE` and `SECURITY.md` are required inputs. Local runtime state and bytecode are excluded; private files nested inside packaged folders fail the build. |
+| `release.yml` | Push of a `v*` tag, or invoked by `autotag.yml` | Re-runs tests and persisted-data compatibility, builds the Pi archive and Windows installer, signs both artifact hashes, and publishes them with release metadata and the Pi bootstrap. Version input must be a stable `vX.Y.Z` tag. The Pi archive includes source, scripts, bootstrap config, runtime requirements, `README-pi.md`, a generated `VERSION`, the hardware check as `scripts/test_connection.py`, and third-party license notices. Root `LICENSE` and `SECURITY.md` are required inputs. Local runtime state and bytecode are excluded; private files nested inside packaged folders fail the build. |
 | `codeql.yml` | Push/PR to `main`, weekly, or manual | Scans Python and JavaScript once the repository is public. Skips while private on the current plan. |
 
 For a bigger bump than the automatic patch increment, push a `vX.Y.0`
@@ -772,6 +851,103 @@ does not publish a release. Automatic main releases remain off until the
 repository Actions variable `AUTO_RELEASE_ENABLED` is set to `true`.
 For a fresh repository, finish security settings and CI, manually tag the
 reviewed initial commit as `v1.1.0`, then enable automatic patch releases.
+Publishing also requires a protected signing environment. The workflow signs
+and verifies the release metadata and publishes it alongside the archive. See
+[release signing](docs/releases.md#release-signing) for setup.
+
+The managed Pi workflow will use `scripts/prepare_pi_venv.py` to prepare
+dependencies separately from activation. Run it as the service user with
+system Python, passing the environments directory and the release's runtime
+requirements file. It prints the ready environment's absolute path on stdout.
+It reuses environments only for matching lock and interpreter identities, and
+installs hash-verified wheels from the configured package index otherwise.
+It does not change release links or prune existing environments.
+
+`scripts/pi_release.py` is the managed Pi updater's staging helper. It checks
+the latest stable GitHub release against the caller's trusted Ed25519 public
+key, downloads and verifies the selected archive, and extracts only regular
+files into a fresh staging directory. It does not activate the release or
+modify persistent data.
+
+`scripts/pi_activation.py` is the Linux-only selection helper. The caller
+must hold the updater lock and prepare a durable release before calling it.
+The helper records the switch, stops the service, runs the update backup
+callback, and atomically replaces `current`. It confirms startup via the
+caller's health check and attempts to restore the prior selection on failure.
+It never restores an older database or settings backup.
+
+`scripts/pi_update.py` wires staging, preparation and activation into
+`status`, `update` and offline `revert` commands for the managed layout.
+It expects root-controlled management files, an installed public key, and
+the managed systemd unit. `pi_update_data.py` runs backup and loopback
+health probes as the service user. The legacy installer does not install
+these commands; `scripts/pi_bootstrap.py` installs them from the published
+`ruuvihub-pi-bootstrap.pyz` bundle.
+For an existing installation, the managed layout can pin its original
+virtualenv through `shared/legacy-venv`. The service keeps using the original
+settings path; a link under the managed `shared/` directory lets the backup
+and health helpers read that same file without changing where the app saves it.
+`scripts/pi_handoff.py` provides the systemd part of that transition: it
+writes an override for the prepared layout and removes it if the managed
+service cannot start and report the existing version.
+Bootstrap snapshots the deployed app as the legacy service user, then
+extracts only validated regular files into the root-controlled layout. The
+build script `scripts/build_pi_bootstrap.py` embeds the release public key,
+not the signing key.
+For a new Pi, the same bundle's `--fresh` mode installs the signed release
+directly. It puts mutable data under the service-owned `shared/data/` and
+keeps release selection and systemd configuration root-controlled.
+After a healthy switch, the updater validates both retained releases before
+pruning unused managed releases and environments. Environment cleanup runs
+as the service user; it does not touch backups or the original legacy tree.
+
+Release CI runs `scripts/check_persisted_upgrade.py` against the previous
+published stable tag before signing. It runs both versions' startup paths
+with synthetic data and separate dependencies, then checks that both
+versions can read and write settings and SQLite after the upgrade and revert.
+
+#### Windows release payload
+
+On Windows x64, run the payload builder with an x64 build Python from the
+same major/minor series as the official embeddable Python ZIP:
+
+```powershell
+python scripts\build_windows_payload.py v1.2.0 --python-zip C:\downloads\python-embed-amd64.zip --python-sha256 <trusted-sha256>
+```
+
+Obtain the archive and verify its provenance using the upstream Python
+release's signature or attestation before supplying its SHA-256. The builder
+installs the locked wheel dependencies into the bundled interpreter and
+writes `dist\ruuvihub-v1.2.0-windows-x64`. The directory contains the app
+and runtime together; it is an installer input, not an installed app.
+The bundled `run.py` takes an absolute `--data-dir`, creates the bootstrap
+config there only once, and starts the app only with Python from the same
+release. Settings, SQLite, logs, and TLS files live outside the payload.
+`scripts/windows_release.py` can verify a local installer or stage the
+latest signed installer without executing it. It shares the approved-source
+download and signature verification code with Pi, not the activation logic.
+`scripts/windows_task.py` selects a release with a single per-user Task
+Scheduler action. `scripts/windows_activation.py` records the switch,
+checks the selected version on loopback, and restores the previous task
+action on failure without restoring older persistent data.
+`scripts/build_windows_installer.py` packages that payload with Inno Setup
+and embeds `RELEASE_SIGNING_PUBLIC_KEY`. The installer verifies its own
+signed metadata and file digest before calling `scripts/windows_setup.py`
+to publish the versioned payload and activate its task.
+The installed `ruuvihub-update.cmd` dispatches to the selected release's
+`update.py`. Setup rejects an update if another operation has already
+changed the selection, and takes a settings/SQLite backup with the app
+stopped. Revert does not contact GitHub.
+On Windows 11, validation used the real per-user Task Scheduler and the
+bundled app: start, update, offline revert, simulated health-check failure
+and recovery, and uninstall-data preservation passed in a disposable
+installation. Live BLE scanning also stored readings from the packaged
+task. The first-install/published-signed-executable and sign-out paths
+remain untested.
+
+```powershell
+python scripts\build_windows_installer.py v1.2.0 dist\ruuvihub-v1.2.0-windows-x64 --iscc C:\path\to\ISCC.exe
+```
 
 **One-time repo setup:** `autotag.yml` needs to push tags and
 `release.yml` needs to publish releases, both using the built-in
@@ -779,11 +955,12 @@ reviewed initial commit as `v1.1.0`, then enable automatic patch releases.
 permissions** at read-only, with Actions approval of pull requests disabled.
 Only the tagging and publishing jobs request `contents: write`; test jobs
 remain read-only. The reusable release workflow receives no inherited
-repository secrets. External Actions are pinned to commit hashes.
+repository secrets; the signing secret is scoped to the publishing job's
+environment. External Actions are pinned to commit hashes.
 
-`.github/dependabot.yml` schedules weekly Python and Actions updates. Python
-updates across the root and test requirements are grouped together, and
-GitHub Actions updates are grouped together in a separate PR. Enable Dependabot
+`.github/dependabot.yml` schedules weekly Python and Actions updates.
+Python dependency updates are grouped together, and GitHub Actions updates
+are grouped together in a separate PR. Enable Dependabot
 alerts/security updates in repository settings. After making
 the repository public, enable secret scanning, push protection, and GitHub
 private vulnerability reporting (the route chosen in [SECURITY.md](SECURITY.md)).

@@ -1,9 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: pip
-    directories:
-      - /
-      - /tests
+    directory: /
     groups:
       all-python-dependencies:
         patterns: ["*"]

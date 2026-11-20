@@ -15,13 +15,16 @@ project structure, key classes, and debugging guidance, see
 
 ## Requirements
 
-- Raspberry Pi 3, 4, or Zero W (built-in Bluetooth)
-  - Older models: USB Bluetooth 4.0+ adapter required
-- Raspberry Pi OS (Bullseye or newer), user `pi`
-- Python 3.10+
-- Internet access on the Pi (for `apt-get`/`pip install` during
-  install/update — the release archive itself is transferred manually)
+- Raspberry Pi 3 Model B+ or Raspberry Pi 5 with 64-bit Raspberry Pi OS
+  (latest stable release), user `pi`
+- Python 3.11+
+- Internet access on the Pi (the legacy archive workflow transfers its
+  release manually; the signed managed bootstrap and updater download releases)
 - RuuviTag sensor(s) in range
+
+The managed updater's locked dependency preparation was checked under
+64-bit Debian 13 (Trixie) with system Python 3.13.5 in Docker. Raspberry Pi OS
+hardware, BLE, and systemd activation were not covered by that check.
 
 This guide (and `scripts/install.sh`/`update.sh`/`rollback.sh`) is fully
 repeatable — run it on as many independent Pis as you like; each install
@@ -34,6 +37,10 @@ is self-contained under its own `/home/pi/ruuvihub/`.
 Releases are built automatically from git tags and published at
 **https://github.com/TeemuTikka/ruuvihub/releases**. Grab the latest
 `ruuvihub-vX.Y.Z.tar.gz` asset.
+
+New releases also include signed artifact metadata. The legacy
+`scripts/install.sh`, `update.sh`, and `rollback.sh` do not verify it;
+the managed bootstrap and `pi_update.py` do.
 
 Archives also include the project's MIT `LICENSE`, the `SECURITY.md` policy,
 `THIRD_PARTY_NOTICES.md`, and `third_party_licenses/`. Keep these with the
@@ -73,6 +80,27 @@ hcitool dev
 ---
 
 ## 3. Install
+
+### Signed online install
+
+For a new Pi with no RuuviHub service, download `ruuvihub-pi-bootstrap.pyz`
+from the [RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases).
+Use your existing unprivileged Pi account in place of `pi` if needed:
+
+```bash
+sudo apt install bluetooth bluez python3-venv python3-cryptography
+sudo /usr/bin/python3 -I ./ruuvihub-pi-bootstrap.pyz --fresh --user pi
+```
+
+The installer downloads and verifies the latest release, prepares its locked
+Python dependencies, then starts and enables `ruuvihub.service`. The managed
+layout is under `/opt/ruuvihub`; settings, readings, logs, and certificates
+live in `shared/data/` there. Open `https://<pi-ip>:8443`, accept the
+self-signed certificate, and change the default admin password on the
+Config page. If setup fails, inspect the service journal and the prepared
+directory; the installer does not overwrite that directory on a retry.
+
+### Legacy archive install
 
 From inside the extracted archive directory:
 ```bash
@@ -148,6 +176,51 @@ Connection test PASSED.
 ---
 
 ## 5. Updating
+
+### Switch an existing install to the signed updater
+
+On a release that provides `ruuvihub-pi-bootstrap.pyz`, download that
+asset directly from the [RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases).
+The bootstrap contains the updater's trusted public key. Use the project
+page over HTTPS, not a mirrored bootstrap or a separately downloaded key.
+
+On the Pi, make sure no legacy install, update, rollback, or uninstall
+command is running. Do not start one during or after the handoff. The
+legacy service must be healthy on a stable `vX.Y.Z` release with absolute
+database and log paths in `shared/settings.local.json` (and absolute TLS
+certificate and key paths when HTTPS is enabled).
+
+```bash
+sudo apt install python3-cryptography
+sudo /usr/bin/python3 -I ./ruuvihub-pi-bootstrap.pyz
+```
+
+For a nondefault legacy installation, pass `--legacy-base /absolute/path`.
+The bootstrap verifies the signed release channel, stages the same installed
+app under `/opt/ruuvihub`, and switches systemd to it. The original settings,
+database, logs, TLS files, and Python environment stay in place. Do not
+delete the legacy directory. If the restart fails, the bootstrap removes its
+systemd override and attempts to restart the original service. It leaves the
+prepared directory for inspection rather than replacing it on a retry.
+
+Run the first application update separately:
+
+```bash
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py status
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py update
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py revert
+```
+
+Use `revert` only to select the previous version after an update. Revert
+works offline and does not restore an older database or settings file.
+After a successful switch, the updater keeps the selected release and one
+previous release, along with their Python environments. It does not prune
+data backups or the original legacy directory.
+
+### Legacy archive updates
+
+These commands are only for installations that have not switched to the
+signed updater.
 
 When a new release is published, transfer the new archive to the Pi the
 same way as step 1, then run:
