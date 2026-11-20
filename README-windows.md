@@ -33,6 +33,15 @@ works offline and keeps the current data. To uninstall, use **Settings >
 Apps > Installed apps**; remove your data directory separately only if
 you no longer need its contents.
 
+### Windows 11 validation
+
+On Windows 11 with an ASUS USB-BT500, a live scan detected nearby RuuviTags.
+The bundled app also ran under its per-user scheduled task with scanning
+enabled and stored sensor readings. A disposable installation exercised
+task start, update, revert, failed-health recovery, and uninstall while
+confirming that its data remained in place. Sign-out behavior and a
+first-install run of a published, signed installer have not been tested.
+
 ---
 
 ## Requirements

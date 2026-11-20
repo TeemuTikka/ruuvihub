@@ -7,7 +7,10 @@ release to its own bundled Python and keeps data outside the payload.
 Per-user task selection and rollback are implemented. The Inno Setup
 installer supports first install and a controlled update mode. The updater
 can check, install, or revert a release. CI builds the installer and includes
-it in signed release metadata. Live Windows validation remains.
+it in signed release metadata. Windows 11 validation has exercised the
+bundled app under the actual per-user Task Scheduler and verified live BLE
+reading storage with an ASUS USB-BT500. The first-install published
+installer and sign-out paths remain untested.
 Use Windows-specific installation/update behavior; share the release metadata
 and signature checks, not a cross-platform transaction engine. Development
 checkouts remain notification-only.
@@ -64,3 +67,20 @@ checkouts remain notification-only.
 - Verify BLE in the selected user-session mode while logged in and document
   its sign-out behavior.
 - Update Windows, developer, general and release documentation.
+
+## Validation completed
+
+- Built the x64 payload using the official Python 3.12.10 embeddable ZIP;
+  verified its published MD5 and checked the supplied SHA-256 before use.
+- Compiled the Inno Setup installer with the official compiler, verified
+  against its SHA-256. Executing the resulting installer without a valid
+  signed release failed at the metadata gate before activation.
+- Exercised task registration, app start and health check, update, revert,
+  failed-health restoration, and uninstall-data preservation in a disposable
+  Windows installation.
+- Scanned on Windows 11 with an ASUS USB-BT500; the packaged app, launched
+  in its per-user task with scanning enabled, stored readings.
+
+Full install from a published, signed installer and sign-out/resume behavior
+remain unverified. The signing key is not provisioned. Raspberry Pi hardware
+validation is separately deferred.

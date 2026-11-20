@@ -883,6 +883,12 @@ The installed `ruuvihub-update.cmd` dispatches to the selected release's
 `update.py`. Setup rejects an update if another operation has already
 changed the selection, and takes a settings/SQLite backup with the app
 stopped. Revert does not contact GitHub.
+On Windows 11, validation used the real per-user Task Scheduler and the
+bundled app: start, update, offline revert, simulated health-check failure
+and recovery, and uninstall-data preservation passed in a disposable
+installation. Live BLE scanning also stored readings from the packaged
+task. The first-install/published-signed-executable and sign-out paths
+remain untested.
 
 ```powershell
 python scripts\build_windows_installer.py v1.2.0 dist\ruuvihub-v1.2.0-windows-x64 --iscc C:\path\to\ISCC.exe
