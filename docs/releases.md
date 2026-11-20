@@ -86,8 +86,9 @@ Missing or mismatched keys stop publication. If uploading fails, inspect the
 draft before retrying.
 The metadata records the version, minimum updater version, platform artifact
 name, byte size and SHA-256 hash. Verification takes a trusted public key, not
-one downloaded from the same GitHub release. The existing Pi installer and
-updater do not consume these signatures yet.
+one downloaded from the same GitHub release. The managed Pi bootstrap and
+updater and the Windows installer and updater verify these signatures. The
+legacy Pi `install.sh`, `update.sh`, and `rollback.sh` scripts do not.
 
 The managed Pi staging helper requests metadata and artifacts from the
 project's GitHub Releases URLs and accepts asset redirects only to GitHub's
