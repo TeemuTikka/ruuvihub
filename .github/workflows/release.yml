@@ -77,6 +77,9 @@ jobs:
             echo "No preceding published stable release."
             exit 0
           fi
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w 0)"
           git fetch --no-tags origin "refs/tags/$previous"
           git worktree add --detach "$RUNNER_TEMP/previous" FETCH_HEAD
           python -m venv "$RUNNER_TEMP/previous-venv"
@@ -187,7 +190,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" \
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --draft \
             --verify-tag --title "$VERSION" --generate-notes \
             "$ARCHIVE_PATH" "$WINDOWS_INSTALLER" dist/release-metadata.json dist/release-metadata.json.sig \
             dist/ruuvihub-pi-bootstrap.pyz
+          expected_assets="$(printf '%s\n' \
+            "$(basename "$ARCHIVE_PATH")" \
+            "$(basename "$WINDOWS_INSTALLER")" \
+            release-metadata.json \
+            release-metadata.json.sig \
+            ruuvihub-pi-bootstrap.pyz | sort)"
+          actual_assets="$(gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' | sort)"
+          if [[ "$actual_assets" != "$expected_assets" ]]; then
+            echo "Draft release assets do not match the expected release contents." >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected_assets" "$actual_assets" >&2
+            exit 1
+          fi
+          gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false
