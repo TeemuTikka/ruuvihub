@@ -1,18 +1,28 @@
-# RuuviHub – Windows Development Guide
+# RuuviHub – Windows Guide
 
-This guide covers setting up, developing, and testing RuuviHub on a **Windows machine**.  
-For deploying to Raspberry Pi, see [README-pi.md](README-pi.md). For project
-structure, key classes, and debugging guidance, see
-[README-dev.md](README-dev.md).
+Install and update the packaged app using the steps below. Development from
+source is covered [later in this guide](#development-from-source).
+For Raspberry Pi, see [README-pi.md](README-pi.md).
 
-Starting with `v2.0.0`, download `ruuvihub-vX.Y.Z-windows-x64.exe` from the
-[RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases)
-and run it while signed in to the account that will use RuuviHub. The
-managed install runs under your logged-in user, not as a Windows service,
-so scanning pauses when you sign out. Setup
-requires an internet connection to check the release signature and
-installer digest. The installer is not Authenticode-signed, so Windows
-may warn that the publisher is unknown. Don't run copies from mirrors.
+## Install (no development setup needed)
+
+You need **64-bit Windows 11**, internet access for setup, a Bluetooth LE
+adapter with Bluetooth turned on, and RuuviTags in range. Python is included
+in the installer; you do not need to install it separately.
+
+1. Open the [latest release](https://github.com/TeemuTikka/ruuvihub/releases/latest)
+   and download **`ruuvihub-vX.Y.Z-windows-x64.exe`** from **Assets**.
+2. Run it while signed in to the account that will use RuuviHub.
+   Setup checks the release signature and installer digest. The installer
+   is not Authenticode-signed, so Windows may warn that the publisher is
+   unknown. Use the download from this project's release page.
+3. Open **https://localhost:8443** and accept the self-signed certificate
+   warning for your local installation.
+4. Sign in with **`admin` / `ruuvihub`**, then change the password under
+   **Settings → System settings**. Nearby tags appear after a scan cycle.
+
+The managed install runs under your logged-in user, so scanning pauses
+when you sign out.
 
 Tray-enabled releases run in the notification area instead of keeping a
 console window open. Look for **RuuviHub** under the taskbar's hidden icons
@@ -23,18 +33,26 @@ after launch and may briefly flash a window. Later bundles start the
 scheduled app without creating a console; the updater still prints to
 the terminal you run it from.
 
+## Update, revert, and uninstall
+
 The app and its Python runtime install under
 `%LOCALAPPDATA%\Programs\RuuviHub`; data lives under `%LOCALAPPDATA%\RuuviHub`.
-Use these commands in PowerShell while signed in:
+Open PowerShell under the same Windows account. Check the installed/latest
+version with `status`, then install the latest release with `update`:
 
 ```powershell
 & "$env:LOCALAPPDATA\Programs\RuuviHub\ruuvihub-update.cmd" status
 & "$env:LOCALAPPDATA\Programs\RuuviHub\ruuvihub-update.cmd" update
+```
+
+`update` backs up settings and SQLite before switching releases. If you need
+to return to the previous version, run:
+
+```powershell
 & "$env:LOCALAPPDATA\Programs\RuuviHub\ruuvihub-update.cmd" revert
 ```
 
-`update` backs up settings and SQLite before switching releases. `revert`
-works offline and keeps the current data. To uninstall, use **Settings >
+`revert` works offline and keeps the current data. To uninstall, use **Settings >
 Apps > Installed apps**; remove your data directory separately only if
 you no longer need its contents.
 
@@ -53,7 +71,13 @@ update/revert between two published signed releases remain untested.
 
 ---
 
-## Requirements
+## Development from source
+
+The remaining setup and test steps are for changing or running the source
+code. For the shared first-change workflow and VS Code setup, see
+[README-dev.md](README-dev.md#start-here-first-code-change).
+
+### Development requirements
 
 - 64-bit Windows 11
 - Python 3.11+ ([python.org](https://www.python.org/downloads/))
@@ -77,10 +101,11 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ---
 
-## 2. Install the main project
+## 2. Install development dependencies
 
 ```powershell
-cd ruuviHub
+git clone https://github.com/TeemuTikka/ruuvihub.git
+cd ruuvihub
 
 python -m venv .venv
 .venv\Scripts\activate
