@@ -19,65 +19,105 @@ others (see [README-dev.md](README-dev.md) for how).
 RuuviHub is licensed under the [MIT License](LICENSE). Bundled third-party
 code retains the notices listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## Install and update
+
+Choose your platform below. Release installs need no Git checkout or development
+setup. You need a Bluetooth LE adapter, Bluetooth turned on, and RuuviTags in range.
+
+### Windows 11 (64-bit)
+
+1. Open the [latest release](https://github.com/TeemuTikka/ruuvihub/releases/latest)
+   and download **`ruuvihub-vX.Y.Z-windows-x64.exe`** from **Assets**
+   (`vX.Y.Z` is the release version).
+2. Run the installer while signed in to the Windows account that will use
+   RuuviHub. Python is included. Setup needs internet access to verify the
+   release. Windows may show an unknown-publisher warning; use the installer
+   from this project's release page.
+3. Open **https://localhost:8443**, or use **Open dashboard** from the
+   RuuviHub tray icon (check the taskbar's hidden icons).
+
+RuuviHub runs under your signed-in account and scanning pauses when you sign
+out. Settings and readings are kept in `%LOCALAPPDATA%\RuuviHub`.
+
+**Update:** open PowerShell under the same Windows account and run:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\RuuviHub\ruuvihub-update.cmd" update
+```
+
+The updater verifies the release and backs up settings and readings before
+switching versions. See the [Windows guide](README-windows.md) for status,
+revert, uninstall, and troubleshooting instructions.
+
+### Raspberry Pi
+
+Use a Pi with **64-bit Raspberry Pi OS**, **Python 3.11+**, and internet access.
+
+1. Download **`ruuvihub-pi-bootstrap.pyz`** from the
+   [latest release](https://github.com/TeemuTikka/ruuvihub/releases/latest)
+   to the Pi, then open a terminal in the folder containing it.
+2. On a **new installation**, run the following. Replace `pi` with your
+   existing Pi username:
+
+   ```bash
+   sudo apt update
+   sudo apt install bluetooth bluez python3-venv python3-cryptography
+   sudo /usr/bin/python3 -I ./ruuvihub-pi-bootstrap.pyz --fresh --user pi
+   ```
+
+3. Open **`https://<pi-ip>:8443`** from a browser on the same network,
+   replacing `<pi-ip>` with your Pi's IP address. RuuviHub starts
+   automatically at boot as `ruuvihub.service`.
+
+The installer downloads and verifies the release. Settings, readings, logs,
+and certificates are stored under `/opt/ruuvihub/shared/data/`.
+
+**Update:** on the Pi, run:
+
+```bash
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py update
+```
+
+Already installed using `install.sh`? Follow the
+[existing-install migration steps](README-pi.md#switch-an-existing-install-to-the-signed-updater)
+before using this updater. The [Pi guide](README-pi.md) also covers status,
+revert, legacy archive updates, and troubleshooting.
+
+### First login (both platforms)
+
+- Accept the self-signed certificate warning when opening your own
+  RuuviHub dashboard for the first time.
+- Sign in with username **`admin`** and password **`ruuvihub`**, then open
+  **Settings → System settings** and change the password.
+- Nearby sensors appear after a scan cycle. Use System settings to name
+  sensors or limit which tags are collected; use Dashboard settings to
+  choose visible sensors and measurements.
+- Cloud uploading is **off by default**. Configure and test a destination
+  before enabling it under **System settings → Cloud Upload**.
+
+The dashboard and sensor history are viewable by anyone on your local network.
+Run RuuviHub on a trusted home/local network; do not expose it directly to the
+internet.
+
+## Dashboard preview
+
+![RuuviHub front page showing three demo sensors, current readings, and temperature trends](docs/images/dashboard.png)
+
+*Dashboard with synthetic demo readings.*
+
 ## Documentation
 
 | Guide | Description |
 |---|---|
-| [README-windows.md](README-windows.md) | Installing and running on a **Windows machine** (development) |
-| [README-pi.md](README-pi.md) | Installing and running as a **systemd service on Raspberry Pi** (production) |
-| [README-dev.md](README-dev.md) | **Developer and AI agent guide**: first-change quick start, Copilot/Codex setup, VS Code, project architecture, tests, and local debugging |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to set up a development environment, run tests, and submit a pull request |
+| [README-windows.md](README-windows.md) | Windows installation, updates, troubleshooting, and development |
+| [README-pi.md](README-pi.md) | Raspberry Pi installation, updates, service management, and legacy installs |
+| [README-dev.md](README-dev.md) | Development quick start, VS Code, AI agents, architecture, tests, and debugging |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow and pull requests |
 | [SECURITY.md](SECURITY.md) | Private vulnerability reporting and deployment security assumptions |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Attribution and license texts for bundled third-party code and adapted skills |
 
-This file covers what RuuviHub does and the settings that apply
-everywhere; see the two installation guides above for OS-specific setup
-steps. Contributors can start with the developer guide's
-[first code change](README-dev.md#start-here-first-code-change) section;
-it includes AI agent and VS Code setup before the detailed architecture
-reference.
-
-## Quick start
-
-This is the fastest way to try RuuviHub from a source checkout
-(development, or a quick manual run). **For a production Raspberry Pi
-install**, use the packaged release + `install.sh` flow in
-[README-pi.md](README-pi.md) instead — it doesn't need git on the Pi and
-comes with an update/rollback workflow.
-
-```bash
-git clone https://github.com/TeemuTikka/ruuvihub.git
-cd ruuviHub
-python -m venv .venv
-# Windows: .venv\Scripts\activate   |   Linux/Pi: source .venv/bin/activate
-pip install -r requirements.txt
-python src/main.py
-```
-
-Then open **https://localhost:8443** (or `https://<device-ip>:8443` from
-another machine on the same network) in a browser. A self-signed
-certificate is auto-generated on first start, so your browser will show
-a one-time "not trusted" warning to click through (the connection is
-still encrypted) — see "HTTPS" below for details and how to use your own
-certificate instead. The plain `http://...:8080` URL still works too; it
-just redirects to the HTTPS one.
-
-- **Default admin login:** username `admin`, password `ruuvihub`. The
-  dashboard and sensor history are publicly viewable on your network;
-  sign in to open the Settings menu and choose Dashboard settings or System settings. A banner reminds signed-in
-  admins to change the default password.
-- RuuviHub is designed to run on a trusted home/local network — don't
-  expose it directly to the internet even over HTTPS, since the
-  certificate is self-signed and there's no rate-limiting/WAF in front
-  of it.
-- **Cloud uploading is off by default**, even if you fill in an
-  endpoint URL. Turn it on explicitly from the System settings page's Cloud
-  Upload section once you've used "Test connection" to confirm it
-  works.
-
-See [README-windows.md](README-windows.md) for Windows development
-prerequisites, or [README-pi.md](README-pi.md) for the Raspberry Pi
-release-package install/update/rollback flow.
+For code changes, jump to [Development](#development) below. The following
+sections describe the dashboard and settings shared by both platforms.
 
 ## The web dashboard
 
@@ -249,6 +289,51 @@ days of history so the log directory can't grow unbounded. When
 running as a systemd service on the Pi, `journalctl` still captures
 stdout as before — the log files are an additional, independent copy
 on disk useful for offline inspection or log shipping.
+
+## Development
+
+To change the code, install **Git** and **Python 3.11+**, then clone the
+repository and install the development/test dependencies:
+
+```bash
+git clone https://github.com/TeemuTikka/ruuvihub.git
+cd ruuvihub
+python -m venv .venv
+```
+
+Activate the environment for your platform:
+
+```powershell
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+```bash
+# Raspberry Pi / Linux / macOS
+source .venv/bin/activate
+```
+
+Install dependencies and try the dashboard with disposable synthetic data
+(no Bluetooth hardware needed):
+
+```bash
+python -m pip install -r tests/requirements.txt
+python scripts/run_demo.py
+```
+
+Open **http://localhost:8080**. Stop the demo with **Ctrl+C**. To run with real
+sensors instead, use `python src/main.py` and open **https://localhost:8443**.
+
+Run the hardware-free tests before submitting changes:
+
+```bash
+python -m pytest tests/ -q --ignore=tests/test_connection.py
+```
+
+See [README-dev.md](README-dev.md#start-here-first-code-change) for the full
+workflow and VS Code setup, and the
+[Windows development steps](README-windows.md#development-from-source)
+for PowerShell setup and platform-specific checks.
 
 ## Project layout
 

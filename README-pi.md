@@ -2,14 +2,11 @@
 
 This guide covers deploying RuuviHub on a **Raspberry Pi** and running it as a
 **systemd service** that starts automatically on boot and restarts after failures.
-Installation and updates use a **release archive** built by GitHub Actions —
-no git or GitHub access is required on the Pi itself, only the ability to
-transfer a `.tar.gz` file to it (scp, USB, or a direct `curl` if the Pi has
-internet access, which it needs anyway for `apt`/`pip`).
+New installations use the signed online installer below. You do not need
+Git or a development environment on the Pi.
 
-For Windows development, see [README-windows.md](README-windows.md). For
-project structure, key classes, and debugging guidance, see
-[README-dev.md](README-dev.md).
+For Windows installation, see [README-windows.md](README-windows.md).
+For changing the code, see [README-dev.md](README-dev.md).
 
 ---
 
@@ -26,9 +23,63 @@ The managed updater's locked dependency preparation was checked under
 64-bit Debian 13 (Trixie) with system Python 3.13.5 in Docker. Raspberry Pi OS
 hardware, BLE, and systemd activation were not covered by that check.
 
-This guide (and `scripts/install.sh`/`update.sh`/`rollback.sh`) is fully
-repeatable — run it on as many independent Pis as you like; each install
-is self-contained under its own `/home/pi/ruuvihub/`.
+## Quick start: install
+
+1. Download **`ruuvihub-pi-bootstrap.pyz`** from the
+   [latest release](https://github.com/TeemuTikka/ruuvihub/releases/latest)
+   to the Pi. Open a terminal in the folder containing the download.
+2. For a **new Pi with no RuuviHub service**, run the following. Replace
+   `pi` with your existing unprivileged Pi username:
+
+   ```bash
+   sudo apt update
+   sudo apt install bluetooth bluez python3-venv python3-cryptography
+   sudo /usr/bin/python3 -I ./ruuvihub-pi-bootstrap.pyz --fresh --user pi
+   ```
+
+3. Open **`https://<pi-ip>:8443`** on your local network. Accept the
+   self-signed certificate warning for your Pi, sign in with
+   **`admin` / `ruuvihub`**, and change the password under
+   **Settings → System settings**.
+
+The installer downloads and verifies the latest release, prepares its locked
+Python dependencies, then starts and enables `ruuvihub.service` for automatic
+startup at boot. The managed layout is under `/opt/ruuvihub`; settings,
+readings, logs, and certificates live in `shared/data/` there. If setup fails,
+inspect the service journal and the prepared directory; the installer does
+not overwrite that directory on a retry.
+
+## Quick start: update
+
+For installations using the signed installer/updater, run on the Pi:
+
+```bash
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py status
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py update
+```
+
+If you need to return to the previous version after an update:
+
+```bash
+sudo /usr/bin/python3 -Es /opt/ruuvihub/tools/pi_update.py revert
+```
+
+Revert works offline and keeps the current settings and readings. After a
+successful switch, the updater retains the selected release and one previous
+release with their Python environments.
+
+**Already installed with `install.sh`?** Follow
+[Switch an existing install to the signed updater](#switch-an-existing-install-to-the-signed-updater)
+before using these commands, or continue with
+[legacy archive updates](#legacy-archive-updates).
+
+## Legacy archive installation
+
+The numbered archive instructions below are for the older `install.sh`
+workflow, which uses `/home/pi/ruuvihub/`. For a new installation, use the
+signed quick start above. Later service and settings examples using
+`/home/pi/ruuvihub/shared/` refer to this legacy layout; a fresh signed
+installation stores those files in `/opt/ruuvihub/shared/data/` instead.
 
 ---
 
@@ -80,25 +131,6 @@ hcitool dev
 ---
 
 ## 3. Install
-
-### Signed online install
-
-For a new Pi with no RuuviHub service, download `ruuvihub-pi-bootstrap.pyz`
-from the [RuuviHub GitHub Releases page](https://github.com/TeemuTikka/ruuvihub/releases).
-Use your existing unprivileged Pi account in place of `pi` if needed:
-
-```bash
-sudo apt install bluetooth bluez python3-venv python3-cryptography
-sudo /usr/bin/python3 -I ./ruuvihub-pi-bootstrap.pyz --fresh --user pi
-```
-
-The installer downloads and verifies the latest release, prepares its locked
-Python dependencies, then starts and enables `ruuvihub.service`. The managed
-layout is under `/opt/ruuvihub`; settings, readings, logs, and certificates
-live in `shared/data/` there. Open `https://<pi-ip>:8443`, accept the
-self-signed certificate, and change the default admin password on the
-Config page. If setup fails, inspect the service journal and the prepared
-directory; the installer does not overwrite that directory on a retry.
 
 ### Legacy archive install
 
@@ -175,7 +207,7 @@ Connection test PASSED.
 
 ---
 
-## 5. Updating
+## 5. Updating existing installations
 
 ### Switch an existing install to the signed updater
 
