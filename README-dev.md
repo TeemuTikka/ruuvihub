@@ -476,14 +476,15 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   via `mac_utils.compact_upper()` (see below) so a name saved when a
   tag's MAC was recorded in a different textual shape still resolves.
   Cards show rolling temperature extrema and an SVG trend for the last
-  6/12/24/48/72 hours, defaulting to 24. `?hours=` selects the window for both
+  1, 3, 6, or 12 hours or 1, 2, 3, 5, or 7 days, defaulting to 1 day.
+  `?hours=` selects the window in hours for both
   the HTML and `/api/current`; unsupported values fall back to 24. Windows
   subtract elapsed hours in UTC, so midnight and daylight-saving changes do
   not create empty or shortened periods. Trends use actual sample timestamps
   and break at missing values and segment changes, with now on the right.
   Temperature scale labels and guide lines show the high, midpoint, and low
   used to draw each trend; polling updates the labels with the graph.
-  A single View history link opens that hourly range on the sensor page.
+  A single View history link opens that range on the sensor page.
   Sensor cards appear first; optional storage metadata appears as small,
   inline text in the footer, with no separate heading or panel.
   The footer sits at the bottom of short pages and follows the content
@@ -508,11 +509,11 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   lowercase hex vs. canonical uppercase colon-separated) still finds the
   right history rows and friendly name instead of silently returning
   nothing.
-  The sensor view defaults to the last 3 days, with 6/12/24/48/72-hour and
-  3/7/14/30/180/360-day controls. Dashboard cards link to their hourly window. It displays the latest reading in that window
+  The sensor view defaults to the last 3 days and offers the dashboard windows
+  plus 14, 30, 180, and 360 days. It displays the latest reading in that window
   above temperature, humidity and pressure charts, with now on the right and
   older readings to the left. Polling reuses chart instances and refreshes
-  the bounds through now. Legacy 1h/24h/all URLs and battery CSV fields
+  the bounds through now. Legacy 24h/48h/72h/all URLs and battery CSV fields
   remain supported.
   The chart request adds `?chart=true` to receive `{records, since, until}`.
   The bounds cover the full selected time window through the server's current

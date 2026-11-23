@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request
 from settings import Settings, SettingsStore
 from mac_utils import compact_upper
 from storage import Storage
-from dashboard_preferences import HISTORY_HOURS, DEFAULT_HISTORY_HOURS
+from dashboard_preferences import HISTORY_WINDOWS, DEFAULT_HISTORY_HOURS
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ def _is_stale(timestamp: Optional[str], scan_interval_seconds: int) -> bool:
 def _history_hours(value):
     try:
         hours = int(value)
-        return hours if hours in HISTORY_HOURS else DEFAULT_HISTORY_HOURS
+        return hours if hours in HISTORY_WINDOWS else DEFAULT_HISTORY_HOURS
     except (ValueError, TypeError):
         return DEFAULT_HISTORY_HOURS
 
@@ -133,6 +133,7 @@ async def dashboard_page(request: Request):
     settings_store: SettingsStore = request.app.state.settings_store
     settings = await settings_store.get()
     history_hours = _history_hours(request.query_params.get("hours"))
+    history_range, history_label = HISTORY_WINDOWS[history_hours]
     cards = await _build_dashboard_cards(storage, settings, history_hours)
     storage_stats = None
     if settings.dashboard_show_storage_info:
@@ -150,7 +151,9 @@ async def dashboard_page(request: Request):
             "refresh_seconds": settings.dashboard_refresh_seconds,
             "visible_metrics": settings.dashboard_visible_metrics,
             "history_hours": history_hours,
-            "history_windows": HISTORY_HOURS,
+            "history_range": history_range,
+            "history_label": history_label,
+            "history_windows": HISTORY_WINDOWS,
             "using_default_credentials": settings.is_using_default_credentials(),
         },
     )
@@ -162,11 +165,14 @@ async def api_current(request: Request):
     settings_store: SettingsStore = request.app.state.settings_store
     settings = await settings_store.get()
     history_hours = _history_hours(request.query_params.get("hours"))
+    history_range, history_label = HISTORY_WINDOWS[history_hours]
     response = {
         "cards": await _build_dashboard_cards(storage, settings, history_hours),
         "dashboard_options": {
             "visible_metrics": settings.dashboard_visible_metrics,
             "history_hours": history_hours,
+            "history_range": history_range,
+            "history_label": history_label,
             "refresh_seconds": settings.dashboard_refresh_seconds,
         },
     }

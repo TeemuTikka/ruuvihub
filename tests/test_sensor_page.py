@@ -309,7 +309,11 @@ def test_history_api_downsamples_long_ranges(tmp_path):
     assert payload[-1]["timestamp"] == (base + timedelta(minutes=504)).isoformat()
 
 
-@pytest.mark.parametrize("range_value,hours", [("1h", 1), ("24h", 24), ("3d", 72), ("7d", 168), ("14d", 336), ("30d", 720), ("180d", 4320), ("360d", 8640)])
+@pytest.mark.parametrize("range_value,hours", [
+    ("1h", 1), ("3h", 3), ("6h", 6), ("12h", 12), ("1d", 24), ("2d", 48),
+    ("3d", 72), ("5d", 120), ("7d", 168), ("14d", 336), ("30d", 720),
+    ("180d", 4320), ("360d", 8640), ("24h", 24), ("48h", 48), ("72h", 72),
+])
 def test_chart_uses_exact_selected_bounds_even_with_sparse_or_empty_data(tmp_path, range_value, hours):
     app, storage, _ = build_app(tmp_path)
     client = TestClient(app)

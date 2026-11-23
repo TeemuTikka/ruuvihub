@@ -79,7 +79,7 @@ def test_dashboard_preferences_persist_without_changing_system_settings(tmp_path
     assert 'data-metric="pressure" hidden' in page
     assert 'data-metric="temperature" hidden' not in page
     assert "Change /" not in page
-    assert "Last 24h" in page
+    assert "Last 1d" in page
     api = client.get("/api/current").json()
     assert [card["mac"] for card in api["cards"]] == [MAC_1]
     assert api["dashboard_options"]["history_hours"] == 24

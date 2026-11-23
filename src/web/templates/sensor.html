@@ -17,13 +17,13 @@
     </div>
     <div class="weather-toolbar">
       <nav class="range-selector" aria-label="History window">
-        {% for value, label in range_options %}
-        <a href="/sensor/{{ mac }}?range={{ value }}" {% if value == range %}class="active" aria-current="page"{% endif %}>{{ label }}</a>
+        {% for value, label in range_options.items() %}
+        <a href="/sensor/{{ mac }}?range={{ value }}" aria-label="{{ label }}"{% if value == selected_range %} class="active" aria-current="page"{% endif %}>{{ value if value.endswith('h') else label }}</a>
         {% endfor %}
       </nav>
       <a href="/api/history/{{ mac }}/export?range={{ range }}">Download CSV</a>
     </div>
-    <p class="card-meta">Past {{ range_options | selectattr('0', 'equalto', range) | map(attribute='1') | first | default(range) }} → now · Measured history</p>
+    <p class="card-meta">{% if selected_range == 'all' %}All recorded history{% else %}Past {{ range_options[selected_range] }} → now · Measured history{% endif %}</p>
     <p id="history-status" class="card-meta" role="status"></p>
   </section>
   <div class="weather-charts">
