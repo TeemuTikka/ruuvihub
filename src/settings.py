@@ -49,6 +49,7 @@ from typing import Dict, List, Optional
 from config import Config, load_config
 from datetime_formats import DEFAULT_DATETIME_FORMAT, DATETIME_FORMATS
 from dashboard_preferences import DEFAULT_DASHBOARD_METRICS, MAX_DASHBOARD_CHANGE_HOURS, LEGACY_METRICS
+from mac_utils import canonicalize_mac
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,10 @@ _POSITIVE_INT_FIELDS = (
 )
 _PORT_FIELDS = ("https_port",)
 _NON_NEGATIVE_INT_FIELDS = ("db_retention_days",)
-_STRING_LIST_FIELDS = ("tag_addresses", "dashboard_hidden_tags", "dashboard_visible_metrics")
+_STRING_LIST_FIELDS = (
+    "tag_addresses", "dashboard_hidden_tags", "dashboard_visible_metrics",
+    "history_backfill_failure_exempt_tags",
+)
 _STRING_DICT_FIELDS = ("tag_names", "history_backfill_disabled_tags")
 _INT_DICT_FIELDS = ("history_backfill_failure_counts",)
 _STRING_FIELDS = (
@@ -133,6 +137,7 @@ _BOOL_FIELDS = (
     "history_backfill_enabled",
     "history_backfill_on_startup",
     "history_backfill_periodic",
+    "history_backfill_failure_limit_enabled",
     "https_enabled",
     "https_redirect_http",
 )
@@ -289,6 +294,8 @@ class Settings:
     history_backfill_periodic: bool = False
     history_backfill_interval_seconds: int = 3600
     history_backfill_failure_threshold: int = 5
+    history_backfill_failure_limit_enabled: bool = True
+    history_backfill_failure_exempt_tags: List[str] = field(default_factory=list)
     history_backfill_disabled_tags: Dict[str, str] = field(default_factory=dict)
     # Per-tag GATT history pull timeout, separate from scan_timeout_seconds
     # (which only bounds a quick passive-advertisement scan window). A
@@ -336,6 +343,12 @@ class Settings:
         filtered = validate_fields(filtered)
         return cls(**filtered)
 
+    def backfill_failure_limit_applies(self, mac: str) -> bool:
+        key = canonicalize_mac(mac)
+        return self.history_backfill_failure_limit_enabled and all(
+            canonicalize_mac(exempt) != key for exempt in self.history_backfill_failure_exempt_tags
+        )
+
     def is_using_default_credentials(self) -> bool:
         """True if the account still has the documented default login.
 
@@ -370,6 +383,7 @@ def _settings_from_config(config: Config) -> Settings:
         history_backfill_on_startup=config.history_backfill_on_startup,
         history_backfill_periodic=config.history_backfill_periodic,
         history_backfill_interval_seconds=config.history_backfill_interval_seconds,
+        history_backfill_failure_limit_enabled=config.history_backfill_failure_limit_enabled,
         history_backfill_failure_threshold=config.history_backfill_failure_threshold,
         history_backfill_timeout_seconds=config.history_backfill_timeout_seconds,
         https_enabled=config.https_enabled,
@@ -420,7 +434,7 @@ class SettingsStore:
         """Synchronous deep-copy snapshot accessor (e.g. before the event loop starts)."""
         return copy.deepcopy(self._settings)
 
-    async def update(self, **fields) -> Settings:
+    async def update(self, *, tag_name_changes: dict[str, str] | None = None, **fields) -> Settings:
         """Update one or more fields, persist to disk, and return the new snapshot.
 
         Unknown field names are ignored (logged) so callers can pass
@@ -435,34 +449,57 @@ class SettingsStore:
                 if key not in valid_names:
                     logger.warning("Ignoring unknown settings field: %s", key)
             validated_fields = validate_fields(known_fields)
-            for key, value in validated_fields.items():
-                setattr(self._settings, key, value)
-            self._write(self._settings)
-            return copy.deepcopy(self._settings)
+            updated = dataclasses.replace(self._settings, **validated_fields)
+            if tag_name_changes:
+                changes = {canonicalize_mac(mac): (mac, name.strip()) for mac, name in tag_name_changes.items()}
+                updated.tag_names = {
+                    mac: name for mac, name in updated.tag_names.items() if canonicalize_mac(mac) not in changes
+                }
+                updated.tag_names.update({mac: name for mac, name in changes.values() if name})
+            if {"history_backfill_failure_limit_enabled", "history_backfill_failure_exempt_tags"} & validated_fields.keys():
+                updated.history_backfill_disabled_tags = {
+                    mac: reason for mac, reason in updated.history_backfill_disabled_tags.items()
+                    if self._settings.backfill_failure_limit_applies(mac) and updated.backfill_failure_limit_applies(mac)
+                }
+                updated.history_backfill_failure_counts = {
+                    mac: count for mac, count in updated.history_backfill_failure_counts.items()
+                    if self._settings.backfill_failure_limit_applies(mac) and updated.backfill_failure_limit_applies(mac)
+                }
+            self._write(updated)
+            self._settings = updated
+            return copy.deepcopy(updated)
 
-
-    async def set_backfill_failure_count(self, mac: str, count: Optional[int]) -> Settings:
-        """Atomically set or clear a single tag's persisted consecutive-failure count."""
+    async def record_backfill_result(self, mac: str, *, failed: bool) -> int | None:
+        """Record a pull under the current policy. Return the count if it disables the tag."""
         async with self._lock:
-            counts = dict(self._settings.history_backfill_failure_counts)
-            if count is not None and count > 0:
-                counts[mac] = count
-            else:
-                counts.pop(mac, None)
-            self._settings.history_backfill_failure_counts = counts
-            self._write(self._settings)
-            return copy.deepcopy(self._settings)
+            settings = self._settings
+            if not settings.backfill_failure_limit_applies(mac):
+                return None
+            counts = settings.history_backfill_failure_counts.copy()
+            key = canonicalize_mac(mac)
+            previous = max((counts.pop(address) for address in tuple(counts)
+                            if canonicalize_mac(address) == key), default=0)
+            disabled = settings.history_backfill_disabled_tags
+            disabled_at = None
+            if failed:
+                count = previous + 1
+                if count >= settings.history_backfill_failure_threshold:
+                    disabled_at = count
+                    disabled = {**disabled, mac: f"{count} consecutive backfill failures"}
+                else:
+                    counts[mac] = count
+            elif not previous:
+                return None
+            updated = dataclasses.replace(
+                settings, history_backfill_failure_counts=counts, history_backfill_disabled_tags=disabled,
+            )
+            self._write(updated)
+            self._settings = updated
+            return disabled_at
 
     async def set_backfill_disabled(self, mac: str, reason: Optional[str]) -> Settings:
         """Atomically disable (set a reason) or re-enable (clear) history
         backfill for a single tag.
-
-        Mirrors ``set_backfill_failure_count()``'s single-mac read/mutate/
-        persist pattern under one lock acquisition, rather than round-tripping the
-        whole ``history_backfill_disabled_tags`` dict through the caller
-        (racy under concurrent updates for *different* tags -- e.g. the
-        backfill loop auto-disabling one tag for repeated failures at the
-        same time an admin re-enables another from the Config page).
 
         Passing ``reason=None`` (or an empty/whitespace string) re-enables
         the tag by removing it from the disabled map.
@@ -474,9 +511,10 @@ class SettingsStore:
                 disabled[mac] = stripped
             else:
                 disabled.pop(mac, None)
-            self._settings.history_backfill_disabled_tags = disabled
-            self._write(self._settings)
-            return copy.deepcopy(self._settings)
+            updated = dataclasses.replace(self._settings, history_backfill_disabled_tags=disabled)
+            self._write(updated)
+            self._settings = updated
+            return copy.deepcopy(updated)
 
     # ------------------------------------------------------------------
     # Internal helpers

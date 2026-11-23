@@ -62,8 +62,12 @@ def test_temperature_summary_boundaries_across_dst(tmp_path, monkeypatch, date):
             system_time.tzset()
 
 
-@pytest.mark.parametrize("hours", [6, 12, 24, 48, 72])
-def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, monkeypatch, hours):
+@pytest.mark.parametrize("hours,range_value,label", [
+    (1, "1h", "1 hour"), (3, "3h", "3 hours"), (6, "6h", "6 hours"),
+    (12, "12h", "12 hours"), (24, "1d", "1 day"), (48, "2d", "2 days"),
+    (72, "3d", "3 days"), (120, "5d", "5 days"), (168, "7d", "7 days"),
+])
+def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, monkeypatch, hours, range_value, label):
     import asyncio
     import web.dashboard as dashboard
     now = datetime(2026, 10, 6, 0, 1, tzinfo=timezone.utc)
@@ -75,7 +79,7 @@ def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, m
 
     client, storage, _ = build_client(tmp_path)
     for age, temperature in [(hours * 3600 + 1, -100), (hours * 3600, -5),
-                             (3600, 20), (0, 10), (-60, 999)]:
+                             (hours * 1800, 20), (0, 10), (-60, 999)]:
         asyncio.run(storage.add(MAC_1, make_record(
             timestamp=(now - timedelta(seconds=age)).isoformat(), temperature=temperature,
         )))
@@ -83,6 +87,8 @@ def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, m
     payload = client.get(f"/api/current?hours={hours}").json()
     card = payload["cards"][0]
     assert payload["dashboard_options"]["history_hours"] == hours
+    assert payload["dashboard_options"]["history_range"] == range_value
+    assert payload["dashboard_options"]["history_label"] == label
     assert card["temperature_low"] == -5
     assert card["temperature_high"] == 20
     assert card["reading_count"] == 3
@@ -90,19 +96,21 @@ def test_rolling_window_extrema_include_boundaries_and_ignore_future(tmp_path, m
     assert card["trend_path"].startswith("M2.00,62.00")
     assert card["trend_path"].endswith("L238.00,26.00")
     page = client.get(f"/?hours={hours}").text
-    assert f"Last {hours}h · Low / high" in page
+    assert f'aria-label="{label}" class="active" aria-current="page"' in page
+    assert f'href="/sensor/{MAC_1}?range={range_value}"' in page
+    assert f"Last {range_value} · Low / high" in page
     assert "Day low / high" not in page and "Night low / high" not in page
     assert "Change /" not in page
     assert 'class="trend-grid"' in page
     assert 'class="trend-values"' in page
-    assert f'aria-label="Temperature over the last {hours} hours; now on the right"' in page
-    assert f'<span class="trend-since">{hours}h ago</span><span>Now</span>' in page
+    assert f'aria-label="Temperature over the last {label}; now on the right"' in page
+    assert f'<span class="trend-since">{range_value} ago</span><span>Now</span>' in page
     assert '<text x="-6" y="2">20.0 °C</text>' in page
     assert '<text x="-6" y="32">7.5 °C</text>' in page
     assert '<text x="-6" y="62">-5.0 °C</text>' in page
 
 
-@pytest.mark.parametrize("hours", [None, "invalid", "1", "26", "-6"])
+@pytest.mark.parametrize("hours", [None, "invalid", "26", "-6", "336"])
 def test_rolling_window_defaults_to_24_hours(tmp_path, hours):
     client, _, _ = build_client(tmp_path)
     url = "/api/current" if hours is None else f"/api/current?hours={hours}"
@@ -334,28 +342,32 @@ def test_api_current_returns_latest_reading_per_tag(tmp_path):
     assert cards[0]["temperature"] == 20.0
 
 
-def test_api_current_flags_stale_reading(tmp_path):
-    client, storage, settings_store = build_client(tmp_path)
+@pytest.mark.parametrize("scan_interval,scan_timeout,stale_after", [
+    (60, 5, 300),
+    (300, 5, 915),
+])
+def test_api_current_marks_stale_at_threshold_and_clears_on_fresh_reading(
+    tmp_path, monkeypatch, scan_interval, scan_timeout, stale_after,
+):
     import asyncio
+    import web.dashboard as dashboard
 
-    asyncio.run(settings_store.update(scan_interval_seconds=1))
-    old_ts = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1, timestamp=old_ts)))
+    recorded_at = datetime(2026, 10, 6, 12, tzinfo=timezone.utc)
+    now = recorded_at + timedelta(seconds=stale_after - 1)
 
-    response = client.get("/api/current")
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz else now.astimezone().replace(tzinfo=None)
 
-    cards = response.json()["cards"]
-    assert cards[0]["stale"] is True
-
-
-def test_api_current_does_not_flag_recent_reading_as_stale(tmp_path):
     client, storage, settings_store = build_client(tmp_path)
-    import asyncio
+    monkeypatch.setattr(dashboard, "datetime", FrozenDatetime)
+    asyncio.run(settings_store.update(scan_interval_seconds=scan_interval, scan_timeout_seconds=scan_timeout))
+    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1, timestamp=recorded_at.isoformat())))
+    assert client.get("/api/current").json()["cards"][0]["stale"] is False
 
-    asyncio.run(settings_store.update(scan_interval_seconds=60))
-    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1)))
+    now += timedelta(seconds=1)
+    assert client.get("/api/current").json()["cards"][0]["stale"] is True
 
-    response = client.get("/api/current")
-
-    cards = response.json()["cards"]
-    assert cards[0]["stale"] is False
+    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1, timestamp=now.isoformat())))
+    assert client.get("/api/current").json()["cards"][0]["stale"] is False

@@ -28,8 +28,9 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import List, Optional
 
+from mac_utils import canonicalize_mac
 from tag_history import download_history
 
 logger = logging.getLogger(__name__)
@@ -179,13 +180,6 @@ async def backfill_tag(
     return merged
 
 
-# Per-mac consecutive-failure counters, seeded from
-# Settings.history_backfill_failure_counts on each call so counts survive
-# process restarts and permanently failing tags can still reach the auto-disable
-# threshold without needing to fail multiple times in the same process lifetime.
-_consecutive_failures: Dict[str, int] = {}
-
-
 async def initialize_pre_scan_backfill_cursors(settings, storage) -> None:
     """Bootstrap each known tag's backfill cursor before scanning starts.
 
@@ -224,7 +218,7 @@ async def run_backfill_for_known_tags(
 
     Eligible tags are the configured whitelist (``settings.tag_addresses``)
     if set, else every mac ``storage`` currently knows about, minus any mac
-    present in ``settings.history_backfill_disabled_tags``.
+    disabled by the configured failure limit.
 
     Tags are processed one at a time (GATT connections are exclusive on a
     single BLE radio anyway). A tag's consecutive-failure counter resets to
@@ -240,21 +234,18 @@ async def run_backfill_for_known_tags(
     Manual recovery instead looks back up to ten days, limited by any
     shorter database retention setting, regardless of the cursor.
     """
-    disabled = settings.history_backfill_disabled_tags
+    disabled = {
+        canonicalize_mac(mac) for mac in settings.history_backfill_disabled_tags
+        if settings.backfill_failure_limit_applies(mac)
+    }
     if settings.tag_addresses:
         candidate_macs = list(settings.tag_addresses)
     else:
         candidate_macs = await storage.known_macs()
-    macs = [mac for mac in candidate_macs if mac not in disabled]
+    macs = [mac for mac in candidate_macs if canonicalize_mac(mac) not in disabled]
 
     result = {"succeeded": 0, "failed": 0, "skipped": len(candidate_macs) - len(macs), "recovered": 0}
     logger.info("History backfill starting: %d eligible tag(s), %d disabled", len(macs), result["skipped"])
-
-    # Seed from persisted counts so partial failure runs from previous processes
-    # carry forward; don't overwrite in-session increments already in memory.
-    for mac, count in settings.history_backfill_failure_counts.items():
-        if mac not in _consecutive_failures:
-            _consecutive_failures[mac] = count
 
     if recover_recent_history:
         lookback = _MANUAL_HISTORY_LOOKBACK
@@ -274,24 +265,17 @@ async def run_backfill_for_known_tags(
             )
         except BackfillError:
             result["failed"] += 1
-            _consecutive_failures[mac] = _consecutive_failures.get(mac, 0) + 1
-            await settings_store.set_backfill_failure_count(mac, _consecutive_failures[mac])
-            if _consecutive_failures[mac] >= settings.history_backfill_failure_threshold:
+            disabled_at = await settings_store.record_backfill_result(mac, failed=True)
+            if disabled_at is not None:
                 logger.warning(
                     "Tag %s failed history backfill %d time(s) in a row -- "
                     "disabling it from backfill until re-enabled from the Config page",
                     mac,
-                    _consecutive_failures[mac],
+                    disabled_at,
                 )
-                await settings_store.set_backfill_disabled(
-                    mac, f"{_consecutive_failures[mac]} consecutive backfill failures"
-                )
-                _consecutive_failures.pop(mac, None)
-                await settings_store.set_backfill_failure_count(mac, None)
             continue
 
-        _consecutive_failures.pop(mac, None)
-        await settings_store.set_backfill_failure_count(mac, None)
+        await settings_store.record_backfill_result(mac, failed=False)
         inserted = await storage.add_history(mac, records)
         if inserted:
             logger.info("History backfill recovered %d record(s) for %s", inserted, mac)

@@ -194,19 +194,15 @@ async def test_cancellation_disconnects_and_stops_scanning(transport):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["stall", "disconnect", "device error"])
 async def test_failed_transfer_keeps_persisted_cursor_then_retries(transport, tmp_path, failure):
-    from history_backfill import run_backfill_for_known_tags, _consecutive_failures
+    from history_backfill import run_backfill_for_known_tags
+    from settings import SettingsStore
     from storage import Storage
 
-    _consecutive_failures.clear()
     storage = Storage(db_path=str(tmp_path / "history.db"))
     since = datetime.fromtimestamp(TS - 3600, tz=timezone.utc).isoformat()
     await storage.set_backfill_cursor(ADDRESS, since)
-    settings = SimpleNamespace(
-        tag_addresses=[ADDRESS], history_backfill_disabled_tags={},
-        history_backfill_failure_counts={}, history_backfill_failure_threshold=5,
-        history_backfill_timeout_seconds=5,
-    )
-    store = SimpleNamespace(set_backfill_failure_count=AsyncMock(), set_backfill_disabled=AsyncMock())
+    store = SettingsStore(settings_path=str(tmp_path / "settings.json"))
+    settings = await store.update(tag_addresses=[ADDRESS], history_backfill_timeout_seconds=5)
     transport.packets = [packet(0x30, -1876)]
     transport.disconnect_after_packets = failure == "disconnect"
     if failure == "device error":
@@ -215,7 +211,7 @@ async def test_failed_transfer_keeps_persisted_cursor_then_retries(transport, tm
     await run_backfill_for_known_tags(settings, storage, store)
     assert await storage.get_backfill_cursor(ADDRESS) == since
     assert await storage.get_history(ADDRESS) == []
-    store.set_backfill_failure_count.assert_awaited_once_with(ADDRESS, 1)
+    assert (await store.get()).history_backfill_failure_counts == {ADDRESS: 1}
 
     transport.packets = [packet(0x30, -1876), END]
     transport.disconnect_after_packets = False
@@ -224,4 +220,4 @@ async def test_failed_transfer_keeps_persisted_cursor_then_retries(transport, tm
     assert len(rows) == 1
     assert rows[0]["temperature"] == -18.76
     assert await storage.get_backfill_cursor(ADDRESS) > since
-    assert ADDRESS not in _consecutive_failures
+    assert (await store.get()).history_backfill_failure_counts == {}

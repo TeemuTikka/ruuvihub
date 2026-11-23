@@ -32,6 +32,7 @@ class Config:
     history_backfill_on_startup: bool = True
     history_backfill_periodic: bool = False
     history_backfill_interval_seconds: int = 3600
+    history_backfill_failure_limit_enabled: bool = True
     history_backfill_failure_threshold: int = 5
     # Per-tag GATT history pull timeout -- separate from
     # scan_timeout_seconds (which only bounds a quick passive-scan
@@ -139,6 +140,7 @@ def load_config(path: str | None = None) -> Config:
         history_backfill_on_startup=_validated_bool(data, "history_backfill_on_startup", True),
         history_backfill_periodic=_validated_bool(data, "history_backfill_periodic", False),
         history_backfill_interval_seconds=_validated_positive_int(data, "history_backfill_interval_seconds", 3600),
+        history_backfill_failure_limit_enabled=_validated_bool(data, "history_backfill_failure_limit_enabled", True),
         history_backfill_failure_threshold=_validated_positive_int(data, "history_backfill_failure_threshold", 5),
         history_backfill_timeout_seconds=_validated_positive_int(data, "history_backfill_timeout_seconds", 120),
         https_enabled=_validated_bool(data, "https_enabled", True),

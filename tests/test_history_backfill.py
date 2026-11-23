@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from mock_ruuvi import MAC_1, MAC_2  # noqa: E402
+from settings import Settings, SettingsStore
 
 
 def _ts(seconds_offset: int = 0) -> int:
@@ -210,45 +211,14 @@ class _FakeStorage:
         return len(records)
 
 
-class _FakeSettingsStore:
-    """Minimal SettingsStore stand-in tracking set_backfill_disabled calls."""
-
-    def __init__(self):
-        self.disabled_calls = []
-        self.failure_count_calls = []
-
-    async def set_backfill_disabled(self, mac, reason):
-        self.disabled_calls.append((mac, reason))
-
-    async def set_backfill_failure_count(self, mac, count):
-        self.failure_count_calls.append((mac, count))
-
-
-class _FakeSettings:
-    def __init__(
-        self,
-        tag_addresses=None,
-        disabled_tags=None,
-        failure_threshold=5,
-        failure_counts=None,
-        timeout_seconds=120,
-    ):
-        self.tag_addresses = tag_addresses or []
-        self.history_backfill_disabled_tags = disabled_tags or {}
-        self.history_backfill_failure_threshold = failure_threshold
-        self.history_backfill_failure_counts = failure_counts or {}
-        self.history_backfill_timeout_seconds = timeout_seconds
-
-
 class TestRunBackfillForKnownTags:
     @pytest.mark.asyncio
     async def test_stores_recovered_records(self):
-        from history_backfill import run_backfill_for_known_tags, _consecutive_failures
+        from history_backfill import run_backfill_for_known_tags
 
-        _consecutive_failures.clear()
         storage = _FakeStorage(known_macs=[MAC_1])
-        settings_store = _FakeSettingsStore()
-        settings = _FakeSettings()
+        settings_store = AsyncMock()
+        settings = Settings()
 
         raw = [{"temperature": 22.5, "humidity": None, "pressure": None, "timestamp": _ts(0)}]
         with patch(
@@ -262,12 +232,11 @@ class TestRunBackfillForKnownTags:
 
     @pytest.mark.asyncio
     async def test_skips_tags_already_disabled(self):
-        from history_backfill import run_backfill_for_known_tags, _consecutive_failures
+        from history_backfill import run_backfill_for_known_tags
 
-        _consecutive_failures.clear()
         storage = _FakeStorage(known_macs=[MAC_1])
-        settings_store = _FakeSettingsStore()
-        settings = _FakeSettings(disabled_tags={MAC_1: "too many failures"})
+        settings_store = AsyncMock()
+        settings = Settings(history_backfill_disabled_tags={MAC_1: "too many failures"})
 
         mock_fn = AsyncMock(return_value=[])
         with patch("history_backfill.download_history", new=mock_fn):
@@ -276,56 +245,64 @@ class TestRunBackfillForKnownTags:
         mock_fn.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_auto_disables_after_consecutive_failure_threshold(self):
-        from history_backfill import run_backfill_for_known_tags, _consecutive_failures
+    async def test_auto_disables_after_consecutive_failure_threshold(self, tmp_path):
+        from history_backfill import run_backfill_for_known_tags
 
-        _consecutive_failures.clear()
         storage = _FakeStorage(known_macs=[MAC_1])
-        settings_store = _FakeSettingsStore()
-        settings = _FakeSettings(failure_threshold=3)
+        path = str(tmp_path / "settings.json")
+        settings_store = SettingsStore(settings_path=path)
+        settings = await settings_store.update(history_backfill_failure_threshold=3)
 
+        download = AsyncMock(side_effect=Exception("BLE error"))
         with patch(
             "history_backfill.download_history",
-            new=AsyncMock(side_effect=Exception("BLE error")),
+            new=download,
         ):
-            for _ in range(3):
-                await run_backfill_for_known_tags(settings, storage, settings_store)
+            await run_backfill_for_known_tags(settings, storage, settings_store)
+            for manual in (False, True):
+                settings_store = SettingsStore(settings_path=path)
+                await run_backfill_for_known_tags(
+                    await settings_store.get(), storage, settings_store, recover_recent_history=manual,
+                )
+            result = await run_backfill_for_known_tags(await settings_store.get(), storage, settings_store)
 
-        assert len(settings_store.disabled_calls) == 1
-        assert settings_store.disabled_calls[0][0] == MAC_1
+        final = await settings_store.get()
+        assert result["skipped"] == 1
+        assert download.await_count == 3
+        assert final.history_backfill_disabled_tags == {MAC_1: "3 consecutive backfill failures"}
+        assert final.history_backfill_failure_counts == {}
 
     @pytest.mark.asyncio
-    async def test_failure_counter_resets_on_success(self):
-        from history_backfill import run_backfill_for_known_tags, _consecutive_failures
+    async def test_failure_counter_resets_on_success(self, tmp_path):
+        from history_backfill import run_backfill_for_known_tags
 
-        _consecutive_failures.clear()
         storage = _FakeStorage(known_macs=[MAC_1])
-        settings_store = _FakeSettingsStore()
-        settings = _FakeSettings(failure_threshold=2)
+        settings_store = SettingsStore(settings_path=str(tmp_path / "settings.json"))
+        settings = await settings_store.update(history_backfill_failure_threshold=2)
 
         with patch(
             "history_backfill.download_history",
             new=AsyncMock(side_effect=Exception("BLE error")),
         ):
             await run_backfill_for_known_tags(settings, storage, settings_store)
-        assert _consecutive_failures[MAC_1] == 1
+        assert (await settings_store.get()).history_backfill_failure_counts == {MAC_1: 1}
 
         with patch(
             "history_backfill.download_history",
             new=AsyncMock(return_value=[]),
         ):
             await run_backfill_for_known_tags(settings, storage, settings_store)
-        assert MAC_1 not in _consecutive_failures
-        assert settings_store.disabled_calls == []
+        updated = await settings_store.get()
+        assert updated.history_backfill_failure_counts == {}
+        assert updated.history_backfill_disabled_tags == {}
 
     @pytest.mark.asyncio
     async def test_whitelist_takes_precedence_over_known_macs(self):
-        from history_backfill import run_backfill_for_known_tags, _consecutive_failures
+        from history_backfill import run_backfill_for_known_tags
 
-        _consecutive_failures.clear()
         storage = _FakeStorage(known_macs=[MAC_2])
-        settings_store = _FakeSettingsStore()
-        settings = _FakeSettings(tag_addresses=[MAC_1])
+        settings_store = AsyncMock()
+        settings = Settings(tag_addresses=[MAC_1])
 
         mock_fn = AsyncMock(return_value=[])
         with patch("history_backfill.download_history", new=mock_fn):
@@ -333,6 +310,46 @@ class TestRunBackfillForKnownTags:
 
         mock_fn.assert_called_once()
         assert mock_fn.call_args.args[0] == MAC_1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("globally_off", [True, False])
+async def test_disabling_failure_limit_resumes_retries_for_affected_tags(tmp_path, globally_off):
+    from history_backfill import BackfillError, run_backfill_for_known_tags
+
+    compact_mac = MAC_1.replace(":", "").lower()
+    storage = _FakeStorage(known_macs=[compact_mac, MAC_2, "outside-whitelist"])
+    path = str(tmp_path / "settings.json")
+    store = SettingsStore(settings_path=path)
+    await store.update(
+        tag_addresses=[compact_mac, MAC_2],
+        history_backfill_failure_threshold=2,
+        history_backfill_disabled_tags={MAC_1: "2 consecutive backfill failures"},
+        history_backfill_failure_counts={MAC_2: 1},
+    )
+    if globally_off:
+        await store.update(history_backfill_failure_limit_enabled=False)
+    else:
+        await store.update(history_backfill_failure_exempt_tags=[MAC_1])
+
+    store = SettingsStore(settings_path=path)
+    download = AsyncMock(side_effect=BackfillError())
+    with patch("history_backfill.backfill_tag", new=download):
+        automatic = await run_backfill_for_known_tags(await store.get(), storage, store)
+        manual = await run_backfill_for_known_tags(
+            await store.get(), storage, store, recover_recent_history=True,
+        )
+    assert automatic["failed"] == 2
+    assert manual["failed"] == (2 if globally_off else 1)
+    assert manual["skipped"] == (0 if globally_off else 1)
+    assert [call.args[0] for call in download.await_args_list] == (
+        [compact_mac, MAC_2, compact_mac, MAC_2] if globally_off else [compact_mac, MAC_2, compact_mac]
+    )
+    final = await store.update(history_backfill_failure_limit_enabled=True, history_backfill_failure_exempt_tags=[])
+    assert final.history_backfill_failure_counts == {}
+    assert final.history_backfill_disabled_tags == (
+        {} if globally_off else {MAC_2: "2 consecutive backfill failures"}
+    )
 
 
 @pytest.mark.asyncio
@@ -416,16 +433,14 @@ async def test_manual_backfill_recovers_history_without_requeuing_existing_rows(
 
 @pytest.mark.asyncio
 async def test_pass_reports_success_failure_disabled_and_recovered():
-    from history_backfill import run_backfill_for_known_tags, BackfillError, _consecutive_failures
+    from history_backfill import run_backfill_for_known_tags, BackfillError
 
-    _consecutive_failures.clear()
-    settings = _FakeSettings(disabled_tags={"disabled": "unreachable"})
+    settings = Settings(history_backfill_disabled_tags={"disabled": "unreachable"})
     storage = _FakeStorage(known_macs=[MAC_1, MAC_2, "disabled"])
     record = {"mac": MAC_1, "timestamp": "2026-09-25T00:00:00+00:00"}
     with patch("history_backfill.backfill_tag", new=AsyncMock(side_effect=[[record], BackfillError()])):
-        result = await run_backfill_for_known_tags(settings, storage, _FakeSettingsStore())
+        result = await run_backfill_for_known_tags(settings, storage, AsyncMock(**{"record_backfill_result.return_value": None}))
     assert result == {"succeeded": 1, "failed": 1, "skipped": 1, "recovered": 1}
     assert storage.added == [(MAC_1, record)]
     assert MAC_1 in storage._backfill_cursors
     assert MAC_2 not in storage._backfill_cursors
-    _consecutive_failures.clear()

@@ -101,7 +101,8 @@ function renderStorageStats(stats) {
 function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
   window.DASHBOARD_OPTIONS = options;
   const visibleMetrics = new Set(options.visible_metrics || [...dashboardMetricKeys, "temperature_range", "temperature_trend"]);
-  const historyHours = options.history_hours || 24;
+  const historyRange = options.history_range || "1d";
+  const historyLabel = options.history_label || "1 day";
   const grid = document.getElementById("card-grid");
   if (!grid) return;
 
@@ -162,9 +163,9 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
       setHidden(entry.metrics[index], hidden);
       setHidden(entry.labels[index], hidden);
     });
-    const href = `/sensor/${encodeURIComponent(card.mac)}?range=${historyHours}h`;
+    const href = `/sensor/${encodeURIComponent(card.mac)}?range=${historyRange}`;
     if (entry.link.getAttribute("href") !== href) entry.link.setAttribute("href", href);
-    setText(entry.window, `Last ${historyHours}h · Low / high`);
+    setText(entry.window, `Last ${historyRange} · Low / high`);
     setText(entry.range, formatTemperatureRange(card.temperature_low, card.temperature_high));
     setHidden(entry.extremes, !visibleMetrics.has("temperature_range"));
     setHidden(entry.trend, !visibleMetrics.has("temperature_trend"));
@@ -175,11 +176,11 @@ function renderCards(cards, options = window.DASHBOARD_OPTIONS || {}) {
     });
     const path = card.trend_path || "";
     if (entry.path.getAttribute("d") !== path) entry.path.setAttribute("d", path);
-    const label = `Temperature over the last ${historyHours} hours; now on the right`;
+    const label = `Temperature over the last ${historyLabel}; now on the right`;
     if (entry.svg.getAttribute("aria-label") !== label) entry.svg.setAttribute("aria-label", label);
     setHidden(entry.svg, !path);
     setHidden(entry.empty, !!path);
-    setText(entry.since, `${historyHours}h ago`);
+    setText(entry.since, `${historyRange} ago`);
     if (entry.stale.hidden !== !card.stale) entry.stale.hidden = !card.stale;
     if (entry.node !== position) grid.insertBefore(entry.node, position);
     position = entry.node.nextElementSibling;

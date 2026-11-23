@@ -433,17 +433,26 @@ BLE radio, pausing passive scanning while it runs (RuuviHub serializes
 the two internally so they never run at once). Configure it from the Config
 page's **History Backfill** section:
 
-- **Enable history backfill** – master switch.
+- **Enable history backfill** – controls automatic startup and periodic
+  sync. **Sync history now** can still run a manual pass when this is off.
 - **Run once on startup** – pulls history for every known tag once when
   the service starts (the main scenario: recovering from a Pi reboot).
 - **Run periodically** – keeps re-running on the interval below (both
   can be on at once).
 - **Periodic interval (seconds)** – default 3600 (1 hour).
+- **Stop history sync after repeated failures** – on by default. Turn it off
+  to keep trying every eligible tag. To make an exception for one sensor,
+  select **Keep trying history sync** for it in **System settings → Tags**.
 - **Consecutive failures before auto-disabling a tag** – default 5. A
   tag that keeps failing (unreachable, out of range, old firmware) is
   automatically removed from backfill so it doesn't keep stalling every
   cycle; re-enable it with the **Re-enable** button once it's reachable
   again or its firmware is updated.
+
+Automatic and manual sync share the failure count. Saving an exception or
+turning off the global limit clears the failure counts and pauses for the
+affected tags. They can be tried on the next sync. Unreachable tags can
+still take up to the configured timeout on each pass.
 
 Backfilled readings are stored and displayed exactly like normal scans —
 no separate view or export needed.

@@ -147,6 +147,35 @@ def test_config_page_shows_disabled_backfill_tags(tmp_path):
     assert "5 consecutive backfill failures" in response.text
 
 
+def test_global_and_per_tag_history_limits_can_be_saved_independently(tmp_path):
+    app, store, _ = build_app(tmp_path)
+    asyncio.run(store.update(tag_addresses=[MAC_1, MAC_2], tag_names={MAC_2: "Kitchen"}))
+    client = TestClient(app)
+    login(client)
+    suffix = MAC_1.replace(":", "_")
+    field = f"tag_backfill_limit_{suffix}"
+    global_field = "history_backfill_failure_limit_enabled"
+    page = client.get("/config").text
+    assert "Stop history sync after repeated failures" in page
+    assert f'id="{field}"' in page
+
+    data = config_form_data(csrf_token=csrf_token(store), tag_addresses=f"{MAC_1},{MAC_2}")
+    response = client.post("/config", data={
+        **data, global_field: "off", field: ["follow", "always"],
+    }, follow_redirects=False)
+    assert response.status_code == 303
+    updated = store.get_sync()
+    assert updated.history_backfill_failure_limit_enabled is False
+    assert updated.history_backfill_failure_exempt_tags == [MAC_1]
+    assert updated.tag_names == {MAC_2: "Kitchen"}
+
+    client.post("/config", data={**data, global_field: ["off", "on"]})
+    assert store.get_sync().history_backfill_failure_limit_enabled is True
+    assert store.get_sync().history_backfill_failure_exempt_tags == [MAC_1]
+    client.post("/config", data={**data, field: "follow"})
+    assert store.get_sync().history_backfill_failure_exempt_tags == []
+
+
 def test_config_page_redirects_to_login_when_unauthenticated(tmp_path):
     app, _, _ = build_app(tmp_path)
     client = TestClient(app)

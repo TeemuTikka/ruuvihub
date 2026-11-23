@@ -14,7 +14,6 @@ from web import dashboard
 
 def test_demo_serves_seeded_dashboard_without_touching_regular_files(tmp_path, monkeypatch):
     seed_time = datetime(2026, 10, 6, 12, tzinfo=timezone.utc)
-    # Garage's latest sample is exactly ten minutes old at seed time.
     now = seed_time + timedelta(seconds=1)
 
     class FrozenDatetime(datetime):
