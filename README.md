@@ -123,7 +123,7 @@ sections describe the dashboard and settings shared by both platforms.
 
 | Page | URL | What it does |
 |---|---|---|
-| Dashboard | `/` | Public, read-only card grid of selected sensors' latest readings, refreshing automatically (poll interval configurable, default 300s). Cards show a friendly name (if you've set one) or the raw MAC address, and flag a tag as stale if it hasn't reported in over 2x the scan interval. |
+| Dashboard | `/` | Public, read-only card grid of selected sensors' latest readings, refreshing automatically (poll interval configurable, default 300s). Cards show a friendly name (if you've set one) or the raw MAC address. |
 | Sensor history | `/sensor/<mac>` | Public weather-style history for one tag: latest temperature/humidity/pressure and charts from oldest on the left to newest on the right. It offers the dashboard windows plus 14, 30, 180, and 360 days and defaults to 3 days. CSV exports include the raw readings, including battery voltage. |
 | System settings | `/config` | Admin login required. Change scanning, tag whitelist, retention, cloud upload, history backfill, friendly names, and your login/password. Most changes apply on the next scan/upload cycle — no restart needed. |
 | Dashboard settings | `/config/dashboard` | Admin login required. Select visible sensors and measurements, refresh interval, and storage information in the footer. Saves independently of system settings. |
@@ -135,8 +135,10 @@ trend chart for the last **1, 3, 6, or 12 hours** or **1, 2, 3, 5, or 7 days**
 Select the window above the cards; it stays selected during automatic refresh.
 Low/high uses all stored readings in the window, including downloaded history.
 The trend runs from the past on the left to now on the right, leaves missing periods blank,
-and shows temperature scale values with horizontal guide lines. Cards mark stale
-sensors. **View history** opens the matching window; longer ranges
+and shows temperature scale values with horizontal guide lines. Cards show
+**Stale** when the latest reading is at least five minutes old and at least
+three scan cycles have elapsed (scan interval plus scan timeout per cycle).
+**View history** opens the matching window; longer ranges
 and CSV export are available there.
 
 In **Settings → Dashboard settings**, choose which measurements and sensors to

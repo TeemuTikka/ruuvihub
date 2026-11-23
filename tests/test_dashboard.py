@@ -342,28 +342,32 @@ def test_api_current_returns_latest_reading_per_tag(tmp_path):
     assert cards[0]["temperature"] == 20.0
 
 
-def test_api_current_flags_stale_reading(tmp_path):
-    client, storage, settings_store = build_client(tmp_path)
+@pytest.mark.parametrize("scan_interval,scan_timeout,stale_after", [
+    (60, 5, 300),
+    (300, 5, 915),
+])
+def test_api_current_marks_stale_at_threshold_and_clears_on_fresh_reading(
+    tmp_path, monkeypatch, scan_interval, scan_timeout, stale_after,
+):
     import asyncio
+    import web.dashboard as dashboard
 
-    asyncio.run(settings_store.update(scan_interval_seconds=1))
-    old_ts = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1, timestamp=old_ts)))
+    recorded_at = datetime(2026, 10, 6, 12, tzinfo=timezone.utc)
+    now = recorded_at + timedelta(seconds=stale_after - 1)
 
-    response = client.get("/api/current")
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now.astimezone(tz) if tz else now.astimezone().replace(tzinfo=None)
 
-    cards = response.json()["cards"]
-    assert cards[0]["stale"] is True
-
-
-def test_api_current_does_not_flag_recent_reading_as_stale(tmp_path):
     client, storage, settings_store = build_client(tmp_path)
-    import asyncio
+    monkeypatch.setattr(dashboard, "datetime", FrozenDatetime)
+    asyncio.run(settings_store.update(scan_interval_seconds=scan_interval, scan_timeout_seconds=scan_timeout))
+    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1, timestamp=recorded_at.isoformat())))
+    assert client.get("/api/current").json()["cards"][0]["stale"] is False
 
-    asyncio.run(settings_store.update(scan_interval_seconds=60))
-    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1)))
+    now += timedelta(seconds=1)
+    assert client.get("/api/current").json()["cards"][0]["stale"] is True
 
-    response = client.get("/api/current")
-
-    cards = response.json()["cards"]
-    assert cards[0]["stale"] is False
+    asyncio.run(storage.add(MAC_1, make_record(mac=MAC_1, timestamp=now.isoformat())))
+    assert client.get("/api/current").json()["cards"][0]["stale"] is False

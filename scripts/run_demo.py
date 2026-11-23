@@ -45,7 +45,7 @@ async def build_demo_app(directory: Path, now: datetime | None = None):
     storage = Storage(max_entries_per_tag=1000, db_path=db_path)
     for tag_index, mac in enumerate(tags):
         # Garage is deliberately stale so both dashboard states are visible.
-        latest = now - timedelta(seconds=10 if tag_index < 2 else 600)
+        latest = now - (timedelta(seconds=10) if tag_index < 2 else timedelta(minutes=20))
         for index in range(289):
             wave = math.sin(index / 288 * 2 * math.pi)
             await storage.add(mac, {

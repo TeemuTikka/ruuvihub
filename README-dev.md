@@ -469,8 +469,9 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   closes the connection when this returns `None`).
 - **`dashboard.py`** — `GET /` and `GET /api/current`. Uses
   `Storage.get_latest_readings()` to build one latest-reading card per
-  tag without copying/scanning all buffered readings, flags a card stale
-  if its reading is older than 2x `scan_interval_seconds`. Friendly-name
+  tag without copying/scanning all buffered readings. The stale badge appears
+  when the reading's age reaches the greater of five minutes and three times
+  `scan_interval_seconds + scan_timeout_seconds`. Friendly-name
   lookup builds one normalized name map per request, preserving the first
   saved name for equivalent keys and matching MACs case/separator-insensitively
   via `mac_utils.compact_upper()` (see below) so a name saved when a

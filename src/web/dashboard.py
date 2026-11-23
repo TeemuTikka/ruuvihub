@@ -30,8 +30,8 @@ def _format_bytes(value: Optional[int]) -> str:
     return f"{amount:.1f} TB"
 
 
-def _is_stale(timestamp: Optional[str], scan_interval_seconds: int) -> bool:
-    """A reading is stale if it's older than 2x the scan interval."""
+def _is_stale(timestamp: Optional[str], now: datetime, stale_after: timedelta) -> bool:
+    """Compare the latest reading's age with the dashboard's grace period."""
     if not timestamp:
         return True
     try:
@@ -40,8 +40,7 @@ def _is_stale(timestamp: Optional[str], scan_interval_seconds: int) -> bool:
         return True
     if seen_at.tzinfo is None:
         seen_at = seen_at.replace(tzinfo=timezone.utc)
-    age_seconds = (datetime.now(timezone.utc) - seen_at).total_seconds()
-    return age_seconds > max(scan_interval_seconds, 1) * 2
+    return now - seen_at >= stale_after
 
 
 def _history_hours(value):
@@ -91,10 +90,12 @@ async def _build_dashboard_cards(storage: Storage, settings: Settings, history_h
     history_hours = _history_hours(history_hours)
     now_utc = datetime.now(timezone.utc)
     since = now_utc - timedelta(hours=history_hours)
+    scan_cycle_seconds = settings.scan_interval_seconds + settings.scan_timeout_seconds
+    stale_after = timedelta(seconds=max(300, 3 * scan_cycle_seconds))
     summaries = await storage.get_weather_summaries(
         [record["mac"] for record in records if record.get("mac") is not None],
         since.isoformat(), now_utc.isoformat(),
-        gap_seconds=2 * (settings.scan_interval_seconds + settings.scan_timeout_seconds),
+        gap_seconds=2 * scan_cycle_seconds,
     )
 
     cards = []
@@ -120,7 +121,7 @@ async def _build_dashboard_cards(storage: Storage, settings: Settings, history_h
                 "battery": record.get("battery"),
                 "rssi": record.get("rssi"),
                 **summary,
-                "stale": _is_stale(record.get("timestamp"), settings.scan_interval_seconds),
+                "stale": _is_stale(record.get("timestamp"), now_utc, stale_after),
             }
         )
     cards.sort(key=lambda c: c["name"].lower())
