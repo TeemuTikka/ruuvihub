@@ -129,7 +129,7 @@
         <p class="hint">
           Pulls each tag's on-device GATT history log (temperature/humidity/pressure only,
           requires tag firmware &ge; 3.30.0) to fill gaps left by a Pi/Bluetooth outage.
-          Off by default: connecting via GATT briefly pauses passive scanning while it runs.
+          Connecting via GATT pauses passive scanning while it runs.
           See <code>docs/research-ruuvitag-gap-backfill.md</code> for background/limitations.
         </p>
       </div>
@@ -150,8 +150,17 @@
       </div>
 
       <div class="field field-narrow">
+        <div class="checkbox-row">
+          <input type="hidden" name="history_backfill_failure_limit_enabled" value="off">
+          <input id="history_backfill_failure_limit_enabled" name="history_backfill_failure_limit_enabled" type="checkbox" value="on" {% if settings.history_backfill_failure_limit_enabled %}checked{% endif %}>
+          <label for="history_backfill_failure_limit_enabled">Stop history sync after repeated failures</label>
+        </div>
+      </div>
+
+      <div class="field field-narrow">
         <label for="history_backfill_failure_threshold">Consecutive failures before auto-disabling a tag</label>
         <input id="history_backfill_failure_threshold" name="history_backfill_failure_threshold" type="number" min="1" value="{{ settings.history_backfill_failure_threshold }}" required>
+        <p class="hint">Turn the limit off to retry all eligible tags on future syncs.</p>
       </div>
 
       <div class="field field-narrow">
@@ -222,11 +231,17 @@
           <td><code>{{ tag.mac }}</code></td>
           <td>
             <input
-              name="{{ tag.field_name }}"
+              name="tag_name_{{ tag.field_suffix }}"
               type="text"
               value="{{ tag.name }}"
               placeholder="{{ tag.mac }}"
+              aria-label="Friendly name for {{ tag.mac }}"
             >
+            <div class="checkbox-row tag-sync-policy">
+              <input type="hidden" name="tag_backfill_limit_{{ tag.field_suffix }}" value="follow">
+              <input id="tag_backfill_limit_{{ tag.field_suffix }}" name="tag_backfill_limit_{{ tag.field_suffix }}" type="checkbox" value="always" {% if tag.keep_trying %}checked{% endif %}>
+              <label for="tag_backfill_limit_{{ tag.field_suffix }}">Keep trying history sync</label>
+            </div>
           </td>
         </tr>
         {% endfor %}

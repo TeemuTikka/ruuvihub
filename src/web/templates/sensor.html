@@ -9,7 +9,20 @@
       <h1 id="sensor-title">{{ friendly_name }}</h1>
     </div>
     <p id="sensor-mac" class="card-meta" {% if friendly_name == mac %}hidden{% endif %}>{{ mac }}</p>
-    {% if request.state.csrf_token %}<p class="card-meta">Rename this tag from the <a href="/config">Config</a> page.</p>{% endif %}
+    {% if can_rename %}
+    {% if name_saved %}<p class="success-msg" role="status">Sensor name saved.</p>{% endif %}
+    <details class="sensor-rename">
+      <summary>Rename sensor</summary>
+      <form method="post" action="/sensor/{{ mac }}/rename">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="range" value="{{ range }}">
+        <label for="sensor-name">Sensor name</label>
+        <input id="sensor-name" name="name" type="text" value="{{ saved_name }}" aria-describedby="sensor-name-hint">
+        <button type="submit" class="secondary">Save name</button>
+        <p class="hint" id="sensor-name-hint">Leave blank to use the MAC address.</p>
+      </form>
+    </details>
+    {% endif %}
 
     <div class="weather-current" aria-label="Latest reading in this view">
       <div><p class="weather-eyebrow">Latest reading</p><div class="weather-temperature" id="weather-temperature">— <span>°C</span></div><p class="card-meta" id="weather-seen">Loading…</p></div>

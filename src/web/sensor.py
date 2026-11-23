@@ -4,14 +4,16 @@ import csv
 import io
 import re
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote, urlencode
 
-from fastapi import APIRouter, Query, Request
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse, Response
 
 from dashboard_preferences import HISTORY_WINDOWS
 from mac_utils import resolve_known_mac
 from settings import Settings
 from storage import Storage
+from web.auth import require_login_page, verify_csrf
 
 router = APIRouter()
 
@@ -26,6 +28,7 @@ VALID_RANGES = {
 }
 RANGE_OPTIONS = dict(HISTORY_WINDOWS.values()) | {f"{days}d": f"{days} days" for days in LONG_RANGES}
 CSV_FIELDS = ["timestamp", "temperature", "humidity", "pressure", "battery"]
+_SENSOR_MAC = re.compile(r"[0-9a-fA-F]{2}(?:[:-]?[0-9a-fA-F]{2}){5}")
 
 
 def _normalize_range(range_value: str | None) -> str:
@@ -74,7 +77,7 @@ async def _resolve_mac(request: Request, mac: str) -> tuple[str, Settings]:
     (so the history/CSV query against storage then finds nothing) and
     sometimes the storage key (so an exact ``tag_names.get()`` then
     misses the name). Resolving the friendly name is therefore always
-    done independently, via ``_friendly_name()``, against
+    done independently, via ``_saved_name()``, against
     ``settings.tag_names`` alone.
     """
     storage: Storage = request.app.state.storage
@@ -83,7 +86,7 @@ async def _resolve_mac(request: Request, mac: str) -> tuple[str, Settings]:
     return resolved, settings
 
 
-def _friendly_name(mac: str, settings: Settings) -> str:
+def _saved_name(mac: str, settings: Settings) -> str:
     """Look up ``mac``'s friendly name, tolerating format mismatches.
 
     Resolved independently from the storage-keyed ``mac`` returned by
@@ -93,7 +96,7 @@ def _friendly_name(mac: str, settings: Settings) -> str:
     ``tag_names`` rather than assuming the two sources share one key.
     """
     resolved = resolve_known_mac(mac, settings.tag_names.keys())
-    return settings.tag_names.get(resolved, mac)
+    return settings.tag_names.get(resolved, "")
 
 
 @router.get("/sensor/{mac}")
@@ -103,12 +106,16 @@ async def sensor_page(
 ):
     mac, settings = await _resolve_mac(request, mac)
     range_value = _normalize_range(request.query_params.get("range"))
+    saved_name = _saved_name(mac, settings)
     return request.app.state.templates.TemplateResponse(
         request,
         "sensor.html",
         {
             "mac": mac,
-            "friendly_name": _friendly_name(mac, settings),
+            "friendly_name": saved_name or mac,
+            "saved_name": saved_name,
+            "can_rename": bool(request.state.csrf_token and _SENSOR_MAC.fullmatch(mac)),
+            "name_saved": request.query_params.get("name_saved") == "1",
             "range": range_value,
             "selected_range": LEGACY_RANGES.get(range_value, range_value),
             "range_options": RANGE_OPTIONS,
@@ -116,6 +123,24 @@ async def sensor_page(
             "using_default_credentials": settings.is_using_default_credentials(),
         },
     )
+
+
+@router.post("/sensor/{mac}/rename")
+async def rename_sensor(
+    request: Request,
+    mac: str,
+    name: str = Form(""),
+    range_value: str = Form(DEFAULT_RANGE, alias="range"),
+    csrf_token: str = Form(""),
+    _username: str = Depends(require_login_page),
+):
+    await verify_csrf(request, csrf_token)
+    if not _SENSOR_MAC.fullmatch(mac):
+        raise HTTPException(status_code=404, detail="Invalid sensor address")
+    mac, _ = await _resolve_mac(request, mac)
+    await request.app.state.settings_store.update(tag_name_changes={mac: name})
+    query = urlencode({"range": _normalize_range(range_value), "name_saved": "1"})
+    return RedirectResponse(f"/sensor/{quote(mac, safe=':')}?{query}", status_code=303)
 
 
 @router.get("/api/history/{mac}")

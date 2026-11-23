@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from settings import DEFAULT_UI_PASSWORD, DEFAULT_UI_USERNAME, SettingsStore
 from storage import Storage
 from web.app import create_app
+from web.auth import compute_csrf_token
 
 from mock_ruuvi import MAC_1, MAC_2, make_record
 
@@ -47,17 +48,48 @@ def test_sensor_page_is_readable_without_login_and_hides_admin_controls(tmp_path
     assert 'id="sensor-page"' in response.text
     assert 'href="/login"' in response.text
     assert 'href="/config"' not in response.text
-    assert "Rename this tag" not in response.text
+    assert "Rename sensor" not in response.text
     assert "Log out" not in response.text
     assert "Live logs" not in response.text
 
     login(client)
     admin_response = client.get(f"/sensor/{MAC_1}")
     assert admin_response.status_code == 200
-    assert 'href="/config"' in admin_response.text
-    assert "Rename this tag" in admin_response.text
+    assert "Rename sensor" in admin_response.text
+    assert f'action="/sensor/{MAC_1}/rename"' in admin_response.text
     assert "Log out" in admin_response.text
     assert "Live logs" in admin_response.text
+
+
+def test_rename_requires_login_and_csrf_and_preserves_range_and_other_names(tmp_path):
+    app, storage, store = build_app(tmp_path)
+    compact = MAC_1.replace(":", "").lower()
+    asyncio.run(storage.add(compact, make_record(mac=compact)))
+    asyncio.run(store.update(tag_names={MAC_1: "Old name", MAC_2: "Other sensor"}))
+    client = TestClient(app)
+    path = f"/sensor/{MAC_1}/rename"
+    form = {"name": "  Kitchen & dining  ", "range": "14d"}
+
+    response = client.post(path, data=form, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+    login(client)
+    assert client.post(path, data=form).status_code == 403
+    assert client.post(path, data={**form, "csrf_token": "wrong"}).status_code == 403
+    assert store.get_sync().tag_names == {MAC_1: "Old name", MAC_2: "Other sensor"}
+
+    token = compute_csrf_token(store.get_sync().session_secret, DEFAULT_UI_USERNAME)
+    response = client.post(path, data={**form, "csrf_token": token}, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/sensor/{compact}?range=14d&name_saved=1"
+    assert store.get_sync().tag_names == {compact: "Kitchen & dining", MAC_2: "Other sensor"}
+    page = client.get(response.headers["location"])
+    assert "Kitchen &amp; dining" in page.text
+    assert "Sensor name saved." in page.text
+
+    response = client.post(path, data={"name": " ", "csrf_token": token})
+    assert f'id="sensor-title">{compact}<' in response.text
+    assert store.get_sync().tag_names == {MAC_2: "Other sensor"}
 
 
 def test_sensor_page_uses_friendly_name_when_configured(tmp_path):

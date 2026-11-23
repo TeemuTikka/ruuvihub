@@ -224,7 +224,8 @@ The live runtime settings store, backed by `settings.local.json`
   or `iso`, both 24-hour), history backfill fields
   (`history_backfill_enabled`, `history_backfill_on_startup`,
   `history_backfill_periodic`, `history_backfill_interval_seconds`,
-  `history_backfill_failure_threshold`, `history_backfill_disabled_tags`),
+  `history_backfill_failure_limit_enabled`, `history_backfill_failure_threshold`,
+  `history_backfill_failure_exempt_tags`, `history_backfill_disabled_tags`),
   HTTPS fields (`https_enabled`, `https_port`, `tls_cert_path`/
   `tls_key_path` — file-only like `db_path`/`log_path`,
   `https_redirect_http`), and the account/session fields (`ui_username`,
@@ -348,19 +349,18 @@ tag cannot stall a whole cycle indefinitely:
 - **`run_backfill_for_known_tags(settings, storage, settings_store)`** —
   returns and logs counts of successful, failed and disabled tags and
   recovered records. The manual sync status displays these counts, including
-  when no tags synced, and reports unexpected errors explicitly. The manual
-  sync reads settings after acquiring the BLE lock so queued requests use
-  current disabled-tag settings. This function
+  when no tags synced, and reports unexpected errors explicitly. Both sync
+  paths read settings after acquiring the BLE lock. This function
   orchestrates a full pass: builds the eligible tag list (whitelist or
-  `storage.known_macs()`, minus anything in
-  `settings.history_backfill_disabled_tags`), processes tags
+  `storage.known_macs()`, excluding tags suspended by the active failure limit), processes tags
   sequentially (GATT connections are exclusive on a single BLE radio
   anyway) using each tag's backfill cursor (falling back to its latest
   live-scan reading if no cursor is recorded yet) as the GATT range's
   lower bound, and auto-disables a tag (persisted via
-  `SettingsStore.set_backfill_disabled`) after
-  `history_backfill_failure_threshold` consecutive failures — reset to
-  0 on any success. The manual pass instead requests a rolling 10-day
+  `SettingsStore.record_backfill_result`) after
+  `history_backfill_failure_threshold` consecutive failures. Success resets
+  the persisted count. Turning off the limit or exempting a tag clears the
+  affected suspension and count. The manual pass instead requests a rolling 10-day
   range and advances an existing cursor only if the range covered it.
   Failed transfers and database writes never advance the cursor.
   `Storage.add_history()` inserts missing readings in one transaction
@@ -516,6 +516,8 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
   older readings to the left. Polling reuses chart instances and refreshes
   the bounds through now. Legacy 24h/48h/72h/all URLs and battery CSV fields
   remain supported.
+  Signed-in admins can use the CSRF-protected rename form to edit the same
+  friendly name that appears in System settings.
   The chart request adds `?chart=true` to receive `{records, since, until}`.
   The bounds cover the full selected time window through the server's current
   time, including empty periods. Each record's `_chart_segments` tracks gaps

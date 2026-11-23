@@ -241,13 +241,13 @@ async def history_backfill_loop(
                 did_run = False
                 if not ran_startup and settings.history_backfill_on_startup:
                     async with ble_lock:
-                        await run_backfill_for_known_tags(settings, storage, settings_store)
+                        await run_backfill_for_known_tags(await settings_store.get(), storage, settings_store)
                     ran_startup = True
                     did_run = True
                 if settings.history_backfill_periodic:
                     if not did_run:
                         async with ble_lock:
-                            await run_backfill_for_known_tags(settings, storage, settings_store)
+                            await run_backfill_for_known_tags(await settings_store.get(), storage, settings_store)
                     await asyncio.sleep(settings.history_backfill_interval_seconds)
                     continue
         except Exception:

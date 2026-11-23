@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 
 from history_backfill import run_backfill_for_known_tags
+from mac_utils import canonicalize_mac, resolve_known_mac
 from settings import hash_password, UPLOAD_DESTINATIONS
 from uploader import validate_azure_blob_container_url
 from web.auth import (
@@ -51,19 +52,12 @@ def _parse_tag_addresses(raw: str) -> list[str]:
 
 
 def _known_macs(
-    tag_addresses: list[str], tag_names: dict[str, str], discovered_macs: list[str] = ()
+    tag_addresses: list[str], tag_names: dict[str, str], discovered_macs: list[str]
 ) -> list[str]:
-    macs: list[str] = []
-    seen: set[str] = set()
-    for mac in [*tag_addresses, *tag_names.keys(), *discovered_macs]:
-        if mac not in seen:
-            seen.add(mac)
-            macs.append(mac)
-    return macs
-
-
-def _tag_field_name(mac: str) -> str:
-    return f"tag_name_{mac.replace(':', '_')}"
+    macs: dict[str, str] = {}
+    for mac in [*tag_addresses, *tag_names, *discovered_macs]:
+        macs.setdefault(canonicalize_mac(mac), mac)
+    return list(macs.values())
 
 
 def _disabled_backfill_tags(disabled_tags: dict[str, str]) -> list[dict[str, str]]:
@@ -74,11 +68,18 @@ def _disabled_backfill_tags(disabled_tags: dict[str, str]) -> list[dict[str, str
 
 
 def _tag_rows(
-    tag_addresses: list[str], tag_names: dict[str, str], discovered_macs: list[str] = ()
-) -> list[dict[str, str]]:
+    tag_addresses: list[str], tag_names: dict[str, str], discovered_macs: list[str], *,
+    failure_exempt_tags: tuple[str, ...] | list[str] = (),
+) -> list[dict]:
+    exempt = {canonicalize_mac(mac) for mac in failure_exempt_tags}
     return [
-        {"mac": mac, "field_name": _tag_field_name(mac), "name": tag_names.get(mac, "")}
-        for mac in _known_macs(tag_addresses, tag_names, discovered_macs)
+        {
+            "mac": mac,
+            "field_suffix": mac.replace(":", "_"),
+            "name": tag_names.get(resolve_known_mac(mac, tag_names), ""),
+            "keep_trying": canonicalize_mac(mac) in exempt,
+        }
+        for mac in _known_macs(tag_addresses, tag_names, [*discovered_macs, *failure_exempt_tags])
     ]
 
 
@@ -125,8 +126,14 @@ async def config_page(
         {
             "settings": settings,
             "tag_addresses_text": "\n".join(settings.tag_addresses),
-            "tag_rows": _tag_rows(settings.tag_addresses, settings.tag_names, discovered_macs),
-            "disabled_backfill_tags": _disabled_backfill_tags(settings.history_backfill_disabled_tags),
+            "tag_rows": _tag_rows(
+                settings.tag_addresses, settings.tag_names, discovered_macs,
+                failure_exempt_tags=settings.history_backfill_failure_exempt_tags,
+            ),
+            "disabled_backfill_tags": _disabled_backfill_tags({
+                mac: reason for mac, reason in settings.history_backfill_disabled_tags.items()
+                if settings.backfill_failure_limit_applies(mac)
+            }),
             "saved": request.query_params.get("saved") == "1",
             "syncing": request.query_params.get("syncing") == "1",
             "backfill_sync_status": request.app.state.backfill_sync_status,
@@ -202,12 +209,27 @@ async def save_config(
         }
     )
 
-    tag_names: dict[str, str] = {}
-    for mac in _known_macs(current_settings.tag_addresses, current_settings.tag_names, discovered_macs):
-        submitted_name = str(form.get(_tag_field_name(mac), "")).strip()
-        if submitted_name:
-            tag_names[mac] = submitted_name
-    updates["tag_names"] = tag_names
+    limit_field = "history_backfill_failure_limit_enabled"
+    if limit_field in form:
+        updates[limit_field] = "on" in form.getlist(limit_field)
+
+    tag_name_changes: dict[str, str] = {}
+    exempt = {canonicalize_mac(mac): mac for mac in current_settings.history_backfill_failure_exempt_tags}
+    for mac in _known_macs(
+        current_settings.tag_addresses, current_settings.tag_names,
+        [*discovered_macs, *current_settings.history_backfill_failure_exempt_tags],
+    ):
+        suffix = mac.replace(":", "_")
+        name_field = f"tag_name_{suffix}"
+        if name_field in form:
+            tag_name_changes[mac] = str(form[name_field])
+        policy = form.getlist(f"tag_backfill_limit_{suffix}")
+        if "always" in policy:
+            exempt[canonicalize_mac(mac)] = mac
+        elif "follow" in policy:
+            exempt.pop(canonicalize_mac(mac), None)
+    if list(exempt.values()) != current_settings.history_backfill_failure_exempt_tags:
+        updates["history_backfill_failure_exempt_tags"] = list(exempt.values())
 
     cloud_auth_header_value = str(form.get("cloud_auth_header_value", ""))
     if cloud_auth_header_value.strip():
@@ -222,7 +244,7 @@ async def save_config(
         updates["session_secret"] = secrets.token_hex(32)
         rotate_session = True
 
-    updated = await settings_store.update(**updates)
+    updated = await settings_store.update(tag_name_changes=tag_name_changes, **updates)
     response = RedirectResponse("/config?saved=1", status_code=303)
     if rotate_session:
         # Re-issue a fresh, validly-signed cookie for the admin performing

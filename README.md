@@ -124,7 +124,7 @@ sections describe the dashboard and settings shared by both platforms.
 | Page | URL | What it does |
 |---|---|---|
 | Dashboard | `/` | Public, read-only card grid of selected sensors' latest readings, refreshing automatically (poll interval configurable, default 300s). Cards show a friendly name (if you've set one) or the raw MAC address. |
-| Sensor history | `/sensor/<mac>` | Public weather-style history for one tag: latest temperature/humidity/pressure and charts from oldest on the left to newest on the right. It offers the dashboard windows plus 14, 30, 180, and 360 days and defaults to 3 days. CSV exports include the raw readings, including battery voltage. |
+| Sensor history | `/sensor/<mac>` | Public weather-style history for one tag, with temperature, humidity, and pressure charts and raw CSV export. It offers the dashboard windows plus 14, 30, 180, and 360 days and defaults to 3 days. Signed-in admins can rename a sensor here. |
 | System settings | `/config` | Admin login required. Change scanning, tag whitelist, retention, cloud upload, history backfill, friendly names, and your login/password. Most changes apply on the next scan/upload cycle — no restart needed. |
 | Dashboard settings | `/config/dashboard` | Admin login required. Select visible sensors and measurements, refresh interval, and storage information in the footer. Saves independently of system settings. |
 | Release status | `/config/releases` | Admin login required. See the installed and latest stable versions, release notes, and the last check result. **Check now** refreshes release information without installing anything. |
@@ -206,6 +206,7 @@ it just now only matters for the very first run on a fresh install.
   "history_backfill_on_startup": true,
   "history_backfill_periodic": false,
   "history_backfill_interval_seconds": 3600,
+  "history_backfill_failure_limit_enabled": true,
   "history_backfill_failure_threshold": 5,
   "history_backfill_timeout_seconds": 120,
   "https_enabled": true,
@@ -232,6 +233,7 @@ it just now only matters for the very first run on a fresh install.
 | `history_backfill_on_startup` | `true` | Run one backfill pass the first time both this and `history_backfill_enabled` are seen as enabled (on startup when using defaults, or immediately if enabled later from the System settings page) |
 | `history_backfill_periodic` | `false` | Keep re-running backfill every `history_backfill_interval_seconds` |
 | `history_backfill_interval_seconds` | 3600 | How often periodic backfill re-runs |
+| `history_backfill_failure_limit_enabled` | `true` | Stop retrying tags that reach the failure threshold. In System settings, turn off the limit for all tags or select **Keep trying history sync** in the Tags list for individual tags. |
 | `history_backfill_failure_threshold` | 5 | Consecutive GATT failures before a tag is auto-disabled from backfill (re-enable from the System settings page) |
 | `history_backfill_timeout_seconds` | 120 | Max seconds to wait for a single tag's GATT history pull before giving up; independent from `scan_timeout_seconds` since pulling a tag's on-device history log can take a minute or two, much longer than a live scan window |
 | `https_enabled` | `true` | Serve the web UI over HTTPS on `https_port` (auto-generates a self-signed cert on first run, see [HTTPS](#https) below) |

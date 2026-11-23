@@ -247,6 +247,8 @@ async def test_history_backfill_settings_defaults(tmp_path):
     assert settings.history_backfill_periodic is False
     assert settings.history_backfill_interval_seconds == 3600
     assert settings.history_backfill_failure_threshold == 5
+    assert settings.history_backfill_failure_limit_enabled is True
+    assert settings.history_backfill_failure_exempt_tags == []
     assert settings.history_backfill_timeout_seconds == 120
     assert settings.history_backfill_disabled_tags == {}
 
@@ -261,14 +263,29 @@ async def test_update_rejects_invalid_history_backfill_fields(tmp_path):
         history_backfill_enabled="not-a-bool",
         history_backfill_interval_seconds=-5,
         history_backfill_failure_threshold=0,
+        history_backfill_failure_limit_enabled="off",
+        history_backfill_failure_exempt_tags=[5],
         history_backfill_timeout_seconds=-10,
         history_backfill_disabled_tags=["not", "a", "dict"],
     )
     assert updated.history_backfill_enabled is True
     assert updated.history_backfill_interval_seconds == 3600
     assert updated.history_backfill_failure_threshold == 5
+    assert updated.history_backfill_failure_limit_enabled is True
+    assert updated.history_backfill_failure_exempt_tags == []
     assert updated.history_backfill_timeout_seconds == 120
     assert updated.history_backfill_disabled_tags == {}
+
+
+def test_history_failure_limit_bootstraps_off_and_is_preserved_on_restart(tmp_path):
+    config_path = write_config(tmp_path, {"history_backfill_failure_limit_enabled": False})
+    settings_path = str(tmp_path / "settings.local.json")
+    store = SettingsStore(settings_path=settings_path, config_path=config_path)
+    assert store.get_sync().history_backfill_failure_limit_enabled is False
+
+    config_path = write_config(tmp_path, {})
+    restarted = SettingsStore(settings_path=settings_path, config_path=config_path)
+    assert restarted.get_sync().history_backfill_failure_limit_enabled is False
 
 
 def test_does_not_overwrite_valid_existing_settings_file(tmp_path):

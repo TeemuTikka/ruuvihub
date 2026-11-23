@@ -482,6 +482,26 @@ canvas {
   margin: 0;
 }
 
+.tag-sync-policy {
+  margin-top: 0.5rem;
+}
+
+.sensor-rename summary {
+  cursor: pointer;
+}
+
+.sensor-rename form {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  max-width: 24rem;
+  margin-top: 0.5rem;
+}
+
+.sensor-rename .hint {
+  margin: 0;
+}
+
 /* Live log panel (logstream.js) — a slide-in drawer toggled from the
    topbar checkbox, streaming records from /ws/logs. */
 .log-toggle {
