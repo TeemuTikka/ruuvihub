@@ -503,13 +503,10 @@ user-supplied cert exists yet at `tls_cert_path`/`tls_key_path`.
 - **`sensor.py`** — `GET /sensor/{mac}`, `GET /api/history/{mac}`
   (JSON, simple downsampling for large ranges), `GET
   /api/history/{mac}/export` (raw CSV, no downsampling). All three
-  resolve the URL's `mac` via `_resolve_mac()`/`mac_utils.resolve_known_mac()`
-  against the union of `Storage.known_macs()` and `Settings.tag_names`
-  keys before looking anything up, so a MAC typed/copied in a different
-  textual shape than however it's actually stored (e.g. compact
-  lowercase hex vs. canonical uppercase colon-separated) still finds the
-  right history rows and friendly name instead of silently returning
-  nothing.
+  resolve the URL's `mac` against `Storage.known_macs()` so the history
+  and CSV queries use the exact stored key. The sensor page separately
+  resolves the friendly name against `Settings.tag_names`. Both lookups
+  match MAC addresses regardless of case or separators.
   The sensor view defaults to the last 3 days and offers the dashboard windows
   plus 14, 30, 180, and 360 days. It displays the latest reading in that window
   above temperature, humidity and pressure charts, with now on the right and

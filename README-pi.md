@@ -433,7 +433,8 @@ BLE radio, pausing passive scanning while it runs (RuuviHub serializes
 the two internally so they never run at once). Configure it from the Config
 page's **History Backfill** section:
 
-- **Enable history backfill** – master switch.
+- **Enable history backfill** – controls automatic startup and periodic
+  sync. **Sync history now** can still run a manual pass when this is off.
 - **Run once on startup** – pulls history for every known tag once when
   the service starts (the main scenario: recovering from a Pi reboot).
 - **Run periodically** – keeps re-running on the interval below (both
