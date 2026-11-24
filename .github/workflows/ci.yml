@@ -51,3 +51,18 @@ jobs:
           # test_connection.py requires real BLE hardware; excluded here
           # the same way README-dev.md documents for local runs.
           python -m pytest tests/ -q --ignore=tests/test_connection.py
+
+  home-assistant:
+    name: Home Assistant app (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and test the app
+        run: |
+          docker info --format '{{.ServerVersion}} {{.OSType}} {{.Architecture}}'
+          docker build -f home-assistant/Dockerfile --build-arg BUILD_ARCH=amd64 \
+            --build-arg BUILD_VERSION=0.0.0 --tag ruuvihub-ha-test .
+          python3 home-assistant/smoke_test.py ruuvihub-ha-test 0.0.0

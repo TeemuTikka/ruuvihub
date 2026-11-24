@@ -104,6 +104,7 @@ jobs:
     uses: ./.github/workflows/release.yml
     permissions:
       contents: write
+      packages: write
     with:
       version: ${{ needs.autotag.outputs.new_tag }}
 

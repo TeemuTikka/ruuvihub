@@ -58,6 +58,23 @@ Source checkouts report `dev`; CI-generated archives contain a `VERSION`
 file with their tag. The live hardware test `tests/test_connection.py`
 remains excluded from the normal CI suite.
 
+### Home Assistant app publication
+
+The release workflow builds and runs the Docker smoke test on native x86-64
+and ARM64 GitHub-hosted runners. It pushes the two tested images to the
+`ruuvihub-home-assistant` package in GitHub Container Registry. After the GitHub
+Release is published, the workflow combines them into a multi-architecture
+image tagged with the release version without its leading `v`. It then updates
+the app store catalog on the `home-assistant` branch. That branch is generated
+from the templates under `home-assistant/`. Maintain the templates in source.
+
+After the first successful publication, set the GitHub Container Registry
+package visibility to **Public** so Home Assistant can pull the app
+anonymously. Verify that the new version appears at
+`https://github.com/TeemuTikka/ruuvihub#home-assistant` in the app store.
+
+### Persisted-data checks
+
 Before publication, release CI also finds the preceding published stable
 tag and runs `scripts/check_persisted_upgrade.py` with separate Python
 environments. It seeds a disposable SQLite database and settings with the

@@ -7,6 +7,8 @@ Git or a development environment on the Pi.
 
 For Windows installation, see [README-windows.md](README-windows.md).
 For changing the code, see [README-dev.md](README-dev.md).
+For a Pi running Home Assistant OS, follow the
+[Home Assistant app instructions](README.md#home-assistant-os).
 
 ---
 
