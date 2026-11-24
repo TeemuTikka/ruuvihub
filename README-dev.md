@@ -739,6 +739,26 @@ Copy this pattern (see `tests/test_main.py` for the canonical version)
 whenever you need to run/import `main.py` without a Bluetooth adapter
 or without `ruuvitag-sensor`/`bleak` installed at all.
 
+### Testing the Home Assistant app with Docker
+
+From the repository root, check the Docker engine and build the app for the
+engine's architecture. This example uses x86-64 with Bash.
+
+```bash
+docker info --format '{{.ServerVersion}} {{.OSType}} {{.Architecture}}'
+docker build --platform linux/amd64 -f home-assistant/Dockerfile \
+  --build-arg BUILD_ARCH=amd64 --build-arg BUILD_VERSION=0.0.0 \
+  -t ruuvihub-ha-test .
+python home-assistant/smoke_test.py ruuvihub-ha-test 0.0.0
+```
+
+For Raspberry Pi, use `--platform linux/arm64` and `BUILD_ARCH=aarch64`.
+Building and running ARM64 on an x86-64 host requires Docker emulation.
+The test checks the HTTPS dashboard, the running version, shutdown, and
+persistence of settings, a synthetic reading, and the certificate after
+container replacement. Testing live Bluetooth discovery and GATT history
+recovery requires a Home Assistant OS host with an adapter and nearby tags.
+
 ### Testing on Linux via Docker (optional)
 
 On Windows 11, use Docker Desktop's Linux engine for Linux-only behavior

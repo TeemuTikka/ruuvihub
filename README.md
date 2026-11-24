@@ -49,7 +49,7 @@ The updater verifies the release and backs up settings and readings before
 switching versions. See the [Windows guide](README-windows.md) for status,
 revert, uninstall, and troubleshooting instructions.
 
-### Raspberry Pi
+### Raspberry Pi OS
 
 Use a Pi with **64-bit Raspberry Pi OS**, **Python 3.11+**, and internet access.
 
@@ -83,7 +83,24 @@ Already installed using `install.sh`? Follow the
 before using this updater. The [Pi guide](README-pi.md) also covers status,
 revert, legacy archive updates, and troubleshooting.
 
-### First login (both platforms)
+### Home Assistant OS
+
+The RuuviHub app supports 64-bit ARM (including Raspberry Pi) and x86-64.
+The app uses the Home Assistant host's Bluetooth adapter to scan for RuuviTags.
+
+1. In Home Assistant, open **Settings → Apps → Install app**. From the
+   three-dot menu, choose **Repositories** and add
+   `https://github.com/TeemuTikka/ruuvihub#home-assistant`.
+2. Find **RuuviHub** in the store, choose **Install**, and then **Start**.
+3. Select **Open Web UI** to open the RuuviHub dashboard over HTTPS. If
+   port 8443 is in use, change the host port in the app's **Network** settings.
+
+Update RuuviHub from its app page. Home Assistant preserves the app's settings,
+readings, logs, and certificates across updates and includes them in app backups.
+To use tag readings in Home Assistant automations, set up the
+[Ruuvi BLE integration](https://www.home-assistant.io/integrations/ruuvitag_ble/).
+
+### First login
 
 - Accept the self-signed certificate warning when opening your own
   RuuviHub dashboard for the first time.
